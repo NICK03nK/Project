@@ -12,7 +12,7 @@ void http_callback(wsserver_t* svr, websocketpp::connection_hdl hdl)
     wsserver_t::connection_ptr con = svr->get_con_from_hdl(hdl);  // 从hdl获取一个连接
     std::cout << "body: " << con->get_request_body() << std::endl;  // 打印请求正文
 
-    websocketpp::http::parser::request req = con->get_request();  // 获取响应
+    websocketpp::http::parser::request req = con->get_request();  // 获取请求
     std::cout << "method: " << req.get_method() << std::endl;  // 打印请求的方法
     std::cout << "uri: " << req.get_uri() << std::endl;  // 打印请求的uri
     
