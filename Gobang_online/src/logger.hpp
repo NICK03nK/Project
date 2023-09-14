@@ -1,0 +1,28 @@
+#pragma once
+
+#include <iostream>
+#include <time.h>
+
+#define INF 0
+#define DBG 1
+#define ERR 2
+#define DEFAULT_LOG_LEVEL DBG
+
+#define LOG(level, format, ...)                                                                  \
+    do                                                                                           \
+    {                                                                                            \
+        if (level < DEFAULT_LOG_LEVEL)                                                           \
+        {                                                                                        \
+            break;                                                                               \
+        }                                                                                        \
+        time_t t = time(NULL);                                                                   \
+        struct tm *tm = localtime(&t);                                                           \
+        char buffer[32] = {0};                                                                   \
+        strftime(buffer, 31, "%H:%M:%S", tm);                                                \
+        fprintf(stdout, "[%s %s : %d] " format "\n", buffer, __FILE__, __LINE__, ##__VA_ARGS__); \
+    } while (0)
+// 在__VA_ARGS__固定参前面加上##即可解决在调用宏函数时，没有参数传递的情况
+
+#define ILOG(format, ...) LOG(INF, format, ##__VA_ARGS__)
+#define DLOG(format, ...) LOG(DBG, format, ##__VA_ARGS__)
+#define ELOG(format, ...) LOG(ERR, format, ##__VA_ARGS__)
