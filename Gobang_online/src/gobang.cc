@@ -46,10 +46,41 @@ void json_util_test()
     }
 }
 
+void string_util_test()
+{
+    std::string src = "123.234....345";
+    std::string sep = ".";
+    std::vector<std::string> res;
+
+    int n = string_util::split(src, sep, res);
+    for (const auto& str : res)
+    {
+        DLOG("%s", str.c_str());
+    }
+    // for (int i = 0; i < n; ++i)
+    // {
+    //     DLOG("%s", res[i].c_str());
+    // }
+}
+
+void file_util_test()
+{
+    // std::string filename = "logger.hpp";
+    std::string filename;
+    std::string body;
+
+    std::cin >> filename;
+    file_util::read(filename, body);
+
+    DLOG("%s", body.c_str());
+}
+
 int main()
 {
     // mysql_util_test();
-    json_util_test();
+    // json_util_test();
+    // string_util_test();
+    file_util_test();
 
     return 0;
 }

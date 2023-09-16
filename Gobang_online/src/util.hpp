@@ -5,6 +5,8 @@
 #include <jsoncpp/json/json.h>
 #include <memory>
 #include <sstream>
+#include <vector>
+#include <fstream>
 
 #include "logger.hpp"
 
@@ -121,6 +123,79 @@ public:
 
             return false;
         }
+
+        return true;
+    }
+};
+
+// 字符串工具类
+class string_util
+{
+public:
+    // 分割字符串
+    static int split(const std::string& src, const std::string& sep, std::vector<std::string>& res)
+    {
+        // 123.123...123
+        size_t pos = 0;
+        int index = 0;
+        while (index < src.size())
+        {
+            pos = src.find(sep, index);
+            if (pos == std::string::npos)
+            {
+                res.push_back(src.substr(index, pos));
+                break;
+            }
+
+            if (pos == index)
+            {
+                ++index;
+                continue;
+            }
+
+            res.push_back(src.substr(index, pos - index));
+            index = pos + sep.size();
+        }
+
+        return res.size();
+    }
+};
+
+// 文件读取工具类
+class file_util
+{
+public:
+    // 读取文件内容
+    static bool read(const std::string& filename, std::string& body)
+    {
+        // 打开文件
+        std::ifstream ifs(filename, std::ios_base::binary);
+        if (ifs.is_open() == false)
+        {
+            ELOG("%s file open failed", filename.c_str());
+
+            return false;
+        }
+
+        // 获取文件大小
+        size_t fsize = 0;
+        ifs.seekg(0, std::ios_base::end);
+        fsize = ifs.tellg();
+        ifs.seekg(0, std::ios_base::beg);
+        body.resize(fsize);
+
+        // 读取文件的所有数据
+        ifs.read(&body[0], fsize);
+        if (ifs.good() == false)
+        {
+            ELOG("read %s file contents failed", filename.c_str());
+            ifs.close();
+
+            return false;
+        }
+
+        // 关闭文件
+        ifs.close();
 
         return true;
     }
