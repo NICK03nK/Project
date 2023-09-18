@@ -15,10 +15,10 @@ class mysql_util
 {
 public:
     // 创建mysql句柄并完成初始化
-    static MYSQL* mysql_create(const std::string &host,
-                               const std::string &user,
-                               const std::string &password,
-                               const std::string &dbname,
+    static MYSQL* mysql_create(const std::string& host,
+                               const std::string& user,
+                               const std::string& password,
+                               const std::string& dbname,
                                unsigned int port = 3306)
     {
         // 初始化mysql句柄
@@ -60,7 +60,6 @@ public:
         {
             ELOG("%s", sql.c_str());
             ELOG("mysql query failed: %s", mysql_error(mysql));
-            mysql_close(mysql); // 出错退出前要断开连接销毁句柄
 
             return false;
         }

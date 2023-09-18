@@ -1,15 +1,16 @@
 #include "logger.hpp"
 #include "util.hpp"
+#include "db.hpp"
 
 #define HOST "127.0.0.1"
 #define USER "root"
-#define PASSWD "N18124665842@"
+#define PASSWORD "N18124665842@"
 #define DB "gobang"
 #define PORT 3306
 
 void mysql_util_test()
 {
-    MYSQL* mysql = mysql_util::mysql_create(HOST, USER, PASSWD, DB, PORT);
+    MYSQL* mysql = mysql_util::mysql_create(HOST, USER, PASSWORD, DB, PORT);
 
     const char* sql = "insert stu values(null, 'lisi', 21, 130, 109, 97);";
     bool ret = mysql_util::mysql_exec(mysql, sql);
@@ -75,12 +76,46 @@ void file_util_test()
     DLOG("%s", body.c_str());
 }
 
+void db_test()
+{
+    user_table ut(HOST, USER, PASSWORD, DB, PORT);
+
+    Json::Value user;
+    user["username"] = "zhangsan";
+    // user["password"] = "123123";
+    // user["password"] = "1231244";
+
+    ut.signup(user);
+    
+    // bool ret = ut.signin(user);
+    // if (ret == false)
+    // {
+    //     DLOG("SIGN IN FAILED");
+    //     return;
+    // }
+
+    // bool ret = ut.select_by_name("zhangsan", user);
+    // std::string body;
+    // json_util::serialize(user, body);
+    // DLOG("%s", body.c_str());
+
+    // bool ret = ut.select_by_id(2, user);
+    // std::string body;
+    // json_util::serialize(user, body);
+    // DLOG("%s", body.c_str());
+
+    // ut.victory(1);
+
+    // ut.defeat(2);
+}
+
 int main()
 {
     // mysql_util_test();
     // json_util_test();
     // string_util_test();
-    file_util_test();
+    // file_util_test();
+    db_test();
 
     return 0;
 }
