@@ -1,6 +1,8 @@
 #include "logger.hpp"
 #include "util.hpp"
 #include "db.hpp"
+#include "online.hpp"
+#include "room.hpp"
 
 #define HOST "127.0.0.1"
 #define USER "root"
@@ -109,13 +111,69 @@ void db_test()
     // ut.defeat(2);
 }
 
+void online_test()
+{
+    online_manager om;
+    wsserver_t::connection_ptr conn;
+    uint64_t userId = 123;
+
+    // om.enter_game_hall(userId, conn);
+    // if (om.is_in_game_hall(userId))
+    // {
+    //     DLOG("IN GAME HALL");
+    // }
+    // else
+    // {
+    //     DLOG("NOT IN GAME HALL");
+    // }
+
+    // om.exit_game_hall(userId);
+    // if (om.is_in_game_hall(userId))
+    // {
+    //     DLOG("IN GAME HALL");
+    // }
+    // else
+    // {
+    //     DLOG("NOT IN GAME HALL");
+    // }
+
+    om.enter_game_room(userId, conn);
+    if (om.is_in_game_room(userId))
+    {
+        DLOG("IN GAME ROOM");
+    }
+    else
+    {
+        DLOG("NOT IN GAME ROOM");
+    }
+
+    om.exit_game_room(userId);
+    if (om.is_in_game_room(userId))
+    {
+        DLOG("IN GAME ROOM");
+    }
+    else
+    {
+        DLOG("NOT IN GAME ROOM");
+    }
+}
+
+void room_test()
+{
+    user_table ut(HOST, USER, PASSWORD, DB, PORT);
+    online_manager om;
+    room r(3, &ut, &om);
+}
+
 int main()
 {
     // mysql_util_test();
     // json_util_test();
     // string_util_test();
     // file_util_test();
-    db_test();
+    // db_test();
+    // online_test();
+    room_test();
 
     return 0;
 }
