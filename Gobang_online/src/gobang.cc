@@ -162,7 +162,10 @@ void room_test()
 {
     user_table ut(HOST, USER, PASSWORD, DB, PORT);
     online_manager om;
-    room r(3, &ut, &om);
+    // room r(3, &ut, &om);
+    
+    room_manager rm(&ut, &om);
+    room_ptr rp = rm.create_room(10, 20);
 }
 
 int main()
