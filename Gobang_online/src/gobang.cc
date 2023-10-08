@@ -4,6 +4,7 @@
 #include "online.hpp"
 #include "room.hpp"
 #include "session.hpp"
+#include "matcher.hpp"
 
 #define HOST "127.0.0.1"
 #define USER "root"
@@ -169,9 +170,12 @@ void room_test()
     room_ptr rp = rm.create_room(10, 20);
 }
 
-void session_test()
+void match_test()
 {
-
+    user_table ut(HOST, USER, PASSWORD, DB, PORT);
+    online_manager om;
+    room_manager rm(&ut, &om);
+    matcher mc(&rm, &ut, &om);
 }
 
 int main()
@@ -183,7 +187,7 @@ int main()
     // db_test();
     // online_test();
     // room_test();
-    session_test();
+    match_test();
 
     return 0;
 }
