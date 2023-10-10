@@ -77,16 +77,16 @@ private:
     std::condition_variable _cond; // 条件变量，主要为了阻塞消费者，消费者是从队列中拿数据的，当队列中元素<2时阻塞
 };
 
-class matcher
+class match_manager
 {
 public:
-    matcher(room_manager* rm, user_table* user_tb, online_manager* user_ol)
+    match_manager(room_manager* rm, user_table* user_tb, online_manager* user_ol)
         :_rm(rm)
         , _user_tb(user_tb)
         , _user_ol(user_ol)
-        , _th_bronze(std::thread(&matcher::thread_bronze_entrance, this))
-        , _th_silver(std::thread(&matcher::thread_silver_entrance, this))
-        , _th_gold(std::thread(&matcher::thread_gold_entrance, this))
+        , _th_bronze(std::thread(&match_manager::thread_bronze_entrance, this))
+        , _th_silver(std::thread(&match_manager::thread_silver_entrance, this))
+        , _th_gold(std::thread(&match_manager::thread_gold_entrance, this))
     {
         DLOG("游戏匹配模块初始化完毕");
     }

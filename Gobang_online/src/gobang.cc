@@ -1,10 +1,4 @@
-#include "logger.hpp"
-#include "util.hpp"
-#include "db.hpp"
-#include "online.hpp"
-#include "room.hpp"
-#include "session.hpp"
-#include "matcher.hpp"
+#include "server.hpp"
 
 #define HOST "127.0.0.1"
 #define USER "root"
@@ -175,7 +169,13 @@ void match_test()
     user_table ut(HOST, USER, PASSWORD, DB, PORT);
     online_manager om;
     room_manager rm(&ut, &om);
-    matcher mc(&rm, &ut, &om);
+    match_manager mm(&rm, &ut, &om);
+}
+
+void server_test()
+{
+    gobang_server svr(HOST, USER, PASSWORD, DB, PORT);
+    svr.start(8080);
 }
 
 int main()
@@ -187,7 +187,8 @@ int main()
     // db_test();
     // online_test();
     // room_test();
-    match_test();
+    // match_test();
+    server_test();
 
     return 0;
 }
