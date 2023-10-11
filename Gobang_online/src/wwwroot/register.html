@@ -29,11 +29,52 @@
             </div>
             <!-- 提交按钮 -->
             <div class="row">
-                <button id="submit">提交</button>
+                <button id="submit" onclick="signup()">提交</button>
             </div>
         </div>
     </div> 
 
     <script src="js/jquery.min.js"></script>
+    <script>
+        // 1.给按钮添加点击事件，调用用户注册函数
+        // 2.封装实现注册函数
+        function signup()
+        {
+            // 1.获取两个输入框中的数据，组织成为一个json格式的字符串
+            var signup_info = {
+                username : document.getElementById("user_name").value,
+                password : document.getElementById("password").value
+            };
+
+            // 2.通过ajax向后台发送用户注册请求
+            $.ajax({
+                url : "/reg",
+                type : "post",
+                data : JSON.stringify(signup_info),
+                success : function(res)
+                {
+                    if (res.result == true)
+                    {
+                        // 3.若请求成功(注册成功)，则跳转到登录页面
+                        alert(res.reason);
+                        window.location.assign("/login.html");
+                    }
+                    else
+                    {
+                        // 4.若请求失败(注册失败)，则清空两个输入框内容，并提示错误原因
+                        document.getElementById("user_name").value = "";
+                        document.getElementById("password").value = "";
+                        alert(res.reason);
+                    }
+                },
+                error : function(xhr)
+                {
+                    document.getElementById("user_name").value = "";
+                    document.getElementById("password").value = "";
+                    alert(JSON.stringify(xhr));
+                }
+            })
+        }
+    </script>
 </body>
 </html>
