@@ -145,18 +145,15 @@ private:
     // 用户注册功能请求的处理
     void signup(wsserver_t::connection_ptr& conn)
     {
-        websocketpp::http::parser::request req = conn->get_request();
-
         // 1.获取http请求正文
         std::string req_body = conn->get_request_body();
 
         // 2.对正文进行反序列化，得到用户名和密码
         Json::Value signup_info;
-        Json::Value resp_json;
         bool ret = json_util::unserialize(req_body, signup_info);
         if (ret == false) // 反序列化失败
         {
-            DLOG("unserialize failed");
+            DLOG("unserialize sign up information failed");
 
             return http_resp(conn, false, "request body is incorrectly formatted", websocketpp::http::status_code::value::bad_request);
         }
@@ -166,7 +163,7 @@ private:
         {
             DLOG("username or password is incomplete");
 
-            return http_resp(conn, false, "username or password is empty", websocketpp::http::status_code::value::bad_request);;
+            return http_resp(conn, false, "username or password is empty", websocketpp::http::status_code::value::bad_request);
         }
 
         ret = _ut.signup(signup_info); // 将用户名和密码新增至数据库中
@@ -178,12 +175,57 @@ private:
         }
 
         // 成功将用户名和密码加入数据库
-        return http_resp(conn, true, "sign up successfull", websocketpp::http::status_code::value::ok);
+        return http_resp(conn, true, "sign up successfully", websocketpp::http::status_code::value::ok);
     }
 
     // 用户登录功能请求的处理
     void signin(wsserver_t::connection_ptr& conn)
-    {}
+    {
+        // 1.获取http请求正文
+        std::string req_body = conn->get_request_body();
+
+        // 2.对正文进行反序列化，得到用户名和密码
+        Json::Value signin_info;
+        bool ret = json_util::unserialize(req_body, signin_info);
+        if (ret == false) // 反序列化失败
+        {
+            DLOG("unserialize sign in information failed");
+
+            return http_resp(conn, false, "request body is incorrectly formatted", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 3.校验正文完整性，进行数据库的用户信息验证(失败返回400)
+        if (signin_info["username"].isNull() || signin_info["password"].isNull())
+        {
+            DLOG("username or password is incomplete");
+
+            return http_resp(conn, false, "username or password is empty", websocketpp::http::status_code::value::bad_request);
+        }
+
+        ret = _ut.signin(signin_info);
+        if (ret == false)
+        {
+            DLOG("sign in failed");
+
+            return http_resp(conn, false, "sign in failed", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 4.用户信息验证成功，则给客户端创建session
+        uint64_t userId = signin_info["id"].asUInt64();
+        session_ptr ssp = _sm.create_session(userId, LOGIN);
+        if (ssp.get() == nullptr)
+        {
+            DLOG("create session failed");
+
+            return http_resp(conn, false, "create session failed", websocketpp::http::status_code::value::internal_server_error);
+        }
+        _sm.set_session_expiration_time(ssp->ssid(), SESSION_TEMOPRARY); // 给session设置生命周期
+
+        // 5.设置响应头部，Set-Cookie，将session id通过cookie返回
+        std::string cookie_ssid = "SSID=" + std::to_string(ssp->ssid());
+        conn->append_header("Set-Cookie", cookie_ssid);
+        return http_resp(conn, true, "sign in successfully", websocketpp::http::status_code::value::ok);
+    }
 
     // 获取用户信息功能请求的处理
     void info(wsserver_t::connection_ptr& conn)
