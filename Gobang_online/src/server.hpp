@@ -227,9 +227,80 @@ private:
         return http_resp(conn, true, "sign in successfully", websocketpp::http::status_code::value::ok);
     }
 
+    bool get_cookie_value(const std::string& cookie_str, const std::string& key, std::string& val)
+    {
+        // Cookie: SSID=xxx; path=/;
+        // 1.以‘; ’作为间隔，对字符串进行分割，得到各个单个的cookie信息
+        std::vector<std::string> cookie_arr;
+        string_util::split(cookie_str, "; ", cookie_arr);
+
+        // 2.对单个的cookie字符串以‘=’为间隔进行分割，得到key和val
+        for (auto str : cookie_arr)
+        {
+            std::vector<std::string> tmp_arr;
+            string_util::split(str, "=", tmp_arr);
+            if (tmp_arr.size() != 2)
+            {
+                continue;
+            }
+
+            if (tmp_arr[0] == key)
+            {
+                val = tmp_arr[1];
+                return true;
+            }
+
+            return false;
+        }
+    }
+
     // 获取用户信息功能请求的处理
     void info(wsserver_t::connection_ptr& conn)
-    {}
+    {
+        // 1.获取http请求中的Cookie字段
+        std::string cookie_str = conn->get_request_header("Cookie");
+        if (cookie_str.empty())
+        {
+            // 没有cookie，则返回错误：没有cookie，重新登陆
+            return http_resp(conn, false, "cannot find cookie", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 从Cookie中获取session id
+        std::string ssid_str;
+        bool ret = get_cookie_value(cookie_str, "SSID", ssid_str);
+        if (ret ==  false)
+        {
+            // cookie中没有ssid，则返回错误：没有ssid，重新登陆
+            return http_resp(conn, false, "there is no session id in cookie", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 2.根据ssid在session管理中查找对应的session
+        session_ptr ssp = _sm.get_session_by_ssid(std::stoul(ssid_str));
+        if (ssp.get() == nullptr)
+        {
+            // 没找到session则表示登录已过期，重新登陆
+            return http_resp(conn, false, "sign in expiration, cannot find session by session id", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 3.通过session获取对应的用户id，再从数据库中获取用户信息，并序列化数据返回给客户端
+        uint64_t userId = ssp->get_user();
+        Json::Value user_info;
+        ret = _ut.select_by_id(userId, user_info);
+        if (ret == false)
+        {
+            // 获取用户信息失败，返回错误：找不到用户信息
+            return http_resp(conn, false, "get user's information failed", websocketpp::http::status_code::value::bad_request);
+        }
+
+        std::string body;
+        json_util::serialize(user_info, body);
+        conn->set_body(body);
+        conn->append_header("Content-Type", "application/json");
+        conn->set_status(websocketpp::http::status_code::value::ok);
+
+        // 4.由于访问过session，所以要刷新session的生命周期
+        _sm.set_session_expiration_time(ssp->ssid(), SESSION_TEMOPRARY);
+    }
 
 private:
     std::string _web_root; // 静态资源根目录  ./wwwroot/  /register.html --> ./wwwroot/register.html
