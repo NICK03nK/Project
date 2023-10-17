@@ -71,8 +71,24 @@ private:
         }
     }
 
+    // websocket长连接断开前的处理函数
     void wsclose_callback(websocketpp::connection_hdl hdl)
-    {}
+    {
+        wsserver_t::connection_ptr conn = _wssvr.get_con_from_hdl(hdl); // 获取连接
+
+        websocketpp::http::parser::request req = conn->get_request(); // 获取http请求
+        std::string uri = req.get_uri(); // 获取请求的uri
+
+        if (uri == "/hall")
+        {
+            // 游戏大厅的长连接断开处理
+            return wsclose_game_hall(conn);
+        }
+        else if (uri == "/room")
+        {
+            // 游戏房间的长连接断开处理
+        }
+    }
 
     void wsmsg_callback(websocketpp::connection_hdl hdl, wsserver_t::message_ptr msg)
     {}
@@ -392,6 +408,56 @@ private:
 
         // 5.将session生命周期设置为永久
         _sm.set_session_expiration_time(ssp->ssid(), SESSION_PERMANENT);
+    }
+
+    // 游戏大厅长连断开后处理函数
+    void wsclose_game_hall(wsserver_t::connection_ptr conn)
+    {
+        // 1.登录验证(判断当前客户端是否登录成功)
+        Json::Value err_resp;
+
+        // 1.1.获取http请求中的Cookie字段
+        std::string cookie_str = conn->get_request_header("Cookie");
+        if (cookie_str.empty())
+        {
+            // 没有cookie，则返回错误：没有cookie，重新登陆
+            err_resp["optype"] = "hall_ready";
+            err_resp["result"] = false;
+            err_resp["reason"] = "cannot find cookie";
+
+            return websocket_resp(conn, err_resp);
+        }
+
+        // 从Cookie中获取session id
+        std::string ssid_str;
+        bool ret = get_cookie_value(cookie_str, "SSID", ssid_str);
+        if (ret == false)
+        {
+            // cookie中没有ssid，则返回错误：没有ssid，重新登陆
+            err_resp["optype"] = "hall_ready";
+            err_resp["result"] = false;
+            err_resp["reason"] = "there is no session id in cookie";
+
+            return websocket_resp(conn, err_resp);
+        }
+
+        // 1.2.根据ssid在session管理中查找对应的session
+        session_ptr ssp = _sm.get_session_by_ssid(std::stoul(ssid_str));
+        if (ssp.get() == nullptr)
+        {
+            // 没找到session则表示登录已过期，重新登陆
+            err_resp["optype"] = "hall_ready";
+            err_resp["result"] = false;
+            err_resp["reason"] = "sign in expiration, cannot find session by session id";
+
+            return websocket_resp(conn, err_resp);
+        }
+
+        // 2.将玩家从游戏大厅移除
+        _om.exit_game_hall(ssp->get_user());
+
+        // 3.将session的生命周期设置为定时的，超时自动销毁
+        _sm.set_session_expiration_time(ssp->ssid(), SESSION_TEMOPRARY);
     }
 
 private:

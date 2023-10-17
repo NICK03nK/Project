@@ -28,6 +28,8 @@
         var websocket_url = "ws://" + location.host + "/hall";
         var websocket_hdl = null;
 
+        window.onbeforeunload = function() { websocket_hdl.close(); }
+
         function get_user_info()
         {
             $.ajax({
