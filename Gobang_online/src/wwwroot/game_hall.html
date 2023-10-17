@@ -25,6 +25,9 @@
 
     <script src="./js/jquery.min.js"></script>
     <script>
+        var websocket_url = "ws://" + location.host + "/hall";
+        var websocket_hdl = null;
+
         function get_user_info()
         {
             $.ajax({
@@ -36,6 +39,12 @@
                         "</br>" + "比赛场次: " + res.total_count + "获胜场次: " + res.win_count + "</p>";
                     var screen_div = document.getElementById("screen");
                     screen_div.innerHTML = info_html;
+
+                    websocket_hdl = new WebSocket(websocket_url);
+                    websocket_hdl.onopen = ws_onopen;
+                    websocket_hdl.onclose = ws_onclose;
+                    websocket_hdl.onerror = ws_onerror;
+                    websocket_hdl.onmessage = ws_onmessage;
                 },
                 error : function(xhr)
                 {
@@ -44,6 +53,27 @@
                 }
             })
         }
+
+        function ws_onopen()
+        {
+            console.log("websocket onopen");
+        }
+
+        function ws_onclose()
+        {
+            console.log("websocket onclose");
+        }
+
+        function ws_onerror()
+        {
+            console.log("websocket onerror");
+        }
+
+        function ws_onmessage(event)
+        {
+            alert(event.data);
+        }
+
         get_user_info();
     </script>
 </body>
