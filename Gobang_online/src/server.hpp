@@ -68,6 +68,7 @@ private:
         else if (uri == "/room")
         {
             // 建立了游戏房间的长连接
+            return wsopen_game_room(conn);
         }
     }
 
@@ -443,6 +444,56 @@ private:
 
         // 5.将session生命周期设置为永久
         _sm.set_session_expiration_time(ssp->ssid(), SESSION_PERMANENT);
+    }
+
+    // 游戏房间长连接建立成功后处理函数
+    void wsopen_game_room(wsserver_t::connection_ptr conn)
+    {
+        Json::Value resp_json;
+
+        // 1.获取当前客户端的session
+        session_ptr ssp = get_session_by_cookie(conn);
+        if (ssp.get() == nullptr)
+        {
+            return;
+        }
+
+        // 2.判断当前客户端是否重复登录
+        if (_om.is_in_game_hall(ssp->get_user()) || _om.is_in_game_room(ssp->get_user()))
+        {
+            resp_json["optype"] = "room_ready";
+            resp_json["result"] = false;
+            resp_json["reason"] = "repeated player logins";
+
+            return websocket_resp(conn, resp_json);
+        }
+
+        // 3.判断当前用户是否已经创建好了房间
+        room_ptr rp = _rm.get_room_by_userId(ssp->get_user());
+        if (rp.get() == nullptr)
+        {
+            resp_json["optype"] = "room_ready";
+            resp_json["result"] = false;
+            resp_json["reason"] = "get game room information by player's id failed";
+
+            return websocket_resp(conn, resp_json);
+        }
+
+        // 4.将当前用户添加到在线用户管理的游戏房间中
+        _om.enter_game_room(ssp->get_user(), conn);
+
+        // 5.将session生命周期设置为永久
+        _sm.set_session_expiration_time(ssp->ssid(), SESSION_PERMANENT);
+
+        // 6.给客户端响应房间创建完成
+        resp_json["optype"] = "room_ready";
+        resp_json["result"] = true;
+        resp_json["room_id"] = (Json::UInt64)rp->id();
+        resp_json["self_id"] = (Json::UInt64)ssp->get_user();
+        resp_json["white_id"] = (Json::UInt64)rp->get_white_player();
+        resp_json["black_id"] = (Json::UInt64)rp->get_black_player();
+
+        return websocket_resp(conn, resp_json);
     }
 
     // 游戏大厅长连断开后处理函数

@@ -48,7 +48,7 @@ public:
 
     void add_black_player(uint64_t userId)
     {
-        _white_id = userId;
+        _black_id = userId;
         ++_player_count;
     }
 

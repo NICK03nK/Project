@@ -101,6 +101,26 @@
             }
             oneStep(col, row, true);
         }
+
+        var websocket_url = "ws://" + location.host + "/room";
+        var websocket_hdl = new WebSocket(websocket_url);
+
+        websocket_hdl.onopen = function() {
+            console.log("game room long connection established successfully");
+        }
+
+        websocket_hdl.onclose = function() {
+            console.log("game room long connection disconnected");
+        }
+
+        websocket_hdl.onerror = function() {
+            console.log("game room long connection error");
+        }
+
+        websocket_hdl.onmessage = function(event) {
+            alert(event.data);
+        }
+
         initGame();
     </script>
 </body>
