@@ -209,7 +209,7 @@ private:
 
             // 5.给两个玩家返回响应
             Json::Value resp;
-            resp["optype"] = "match_start";
+            resp["optype"] = "match_success";
             resp["result"] = true;
 
             std::string body;
