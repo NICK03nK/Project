@@ -88,6 +88,7 @@ private:
         else if (uri == "/room")
         {
             // 游戏房间的长连接断开处理
+            return wsclose_game_room(conn);
         }
     }
 
@@ -107,6 +108,7 @@ private:
         else if (uri == "/room")
         {
             // 游戏房间的长连接断开处理
+            return wsmsg_game_room(conn, msg);
         }
     }
 
@@ -438,7 +440,7 @@ private:
         // 4.给客户端响应游戏大厅建立成功
         resp_json["optype"] = "hall_ready";
         resp_json["result"] = true;
-        resp_json["userId"] = (Json::UInt64)ssp->get_user(); // ???????????是否要加？
+        resp_json["userId"] = (Json::UInt64)ssp->get_user();
         
         websocket_resp(conn, resp_json);
 
@@ -489,7 +491,7 @@ private:
         resp_json["optype"] = "room_ready";
         resp_json["result"] = true;
         resp_json["room_id"] = (Json::UInt64)rp->id();
-        resp_json["self_id"] = (Json::UInt64)ssp->get_user();
+        resp_json["uid"] = (Json::UInt64)ssp->get_user();
         resp_json["white_id"] = (Json::UInt64)rp->get_white_player();
         resp_json["black_id"] = (Json::UInt64)rp->get_black_player();
 
@@ -511,6 +513,26 @@ private:
 
         // 3.将session的生命周期设置为定时的，超时自动销毁
         _sm.set_session_expiration_time(ssp->ssid(), SESSION_TEMOPRARY);
+    }
+
+    // 游戏房间长连断开后处理函数
+    void wsclose_game_room(wsserver_t::connection_ptr conn)
+    {
+        // 1.获取会话信息，识别客户端
+        session_ptr ssp = get_session_by_cookie(conn);
+        if (ssp.get() == nullptr)
+        {
+            return;
+        }
+
+        // 2.将玩家从在线用户管理中移除
+        _om.exit_game_room(ssp->get_user());
+
+        // 3.将session的生命周期设置为定时的，超时自动销毁
+        _sm.set_session_expiration_time(ssp->ssid(), SESSION_TEMOPRARY);
+        
+        // 4.将玩家从游戏房间中移除(房间中所有玩家都退出了就会销毁房间)
+        _rm.remove_room_player(ssp->get_user());
     }
 
     // 游戏大厅消息请求处理函数
@@ -563,6 +585,45 @@ private:
         resp_json["result"] = false;
 
         return websocket_resp(conn, resp_json);
+    }
+
+    // 游戏房间消息请求处理函数
+    void wsmsg_game_room(wsserver_t::connection_ptr conn, wsserver_t::message_ptr msg)
+    {
+        Json::Value resp_json;
+
+        // 1.获取客户端session，识别客户端身份
+        session_ptr ssp = get_session_by_cookie(conn);
+        if (ssp.get() == nullptr)
+        {
+            return;
+        }
+
+        // 2.获取客户端房间信息
+        room_ptr rp = _rm.get_room_by_userId(ssp->get_user());
+        if (rp.get() == nullptr)
+        {
+            resp_json["optype"] = "unknown";
+            resp_json["result"] = false;
+            resp_json["reason"] = "get game room information by player's id failed";
+
+            return websocket_resp(conn, resp_json);
+        }
+
+        // 3.对消息进行反序列化
+        Json::Value req_json;
+        std::string req_body = msg->get_payload();
+        bool ret = json_util::unserialize(req_body, req_json);
+        if (ret = false)
+        {
+            resp_json["result"] = false;
+            resp_json["reason"] = "resolution request failed";
+
+            return websocket_resp(conn, resp_json);
+        }
+
+        // 4.通过房间模块进行消息请求的处理
+        return rp->handle_request(req_json);
     }
 
 private:

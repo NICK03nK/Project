@@ -59,7 +59,7 @@ public:
     // 处理下棋动作
     Json::Value handle_chess(Json::Value& req)
     {
-        Json::Value json_resp;
+        Json::Value json_resp = req;
 
         uint64_t cur_userId = req["uid"].asUInt64();
         int chess_row = req["row"].asInt();
@@ -68,7 +68,6 @@ public:
         // 1.判断走棋位置是否合理(是否越界，是否被占用)
         if (chess_row > BOARD_ROWS || chess_col > BOARD_COLS)
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = false;
             json_resp["reason"] = "chess position out of bounds";
 
@@ -76,7 +75,6 @@ public:
         }
         else if (_board[chess_row][chess_col] != 0)
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = false;
             json_resp["reason"] = "the current location is occupied";
 
@@ -91,13 +89,8 @@ public:
         // 判断白棋玩家是否在线
         if (_user_ol->is_in_game_room(_white_id) == false) // 白棋玩家掉线
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = true;
             json_resp["reason"] = "the other player drops out, wins without a fight";
-            json_resp["room_id"] = (Json::UInt64)_room_id;
-            json_resp["uid"] = (Json::UInt64)cur_userId;
-            json_resp["row"] = chess_row;
-            json_resp["col"] = chess_col;
             json_resp["winner"] = (Json::UInt64)_black_id;
 
             return json_resp;
@@ -105,13 +98,8 @@ public:
         // 判断黑棋玩家是否在线
         if (_user_ol->is_in_game_room(_black_id) == false) // 黑棋玩家掉线
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = true;
             json_resp["reason"] = "the other player drops out, wins without a fight";
-            json_resp["room_id"] = (Json::UInt64)_room_id;
-            json_resp["uid"] = (Json::UInt64)cur_userId;
-            json_resp["row"] = chess_row;
-            json_resp["col"] = chess_col;
             json_resp["winner"] = (Json::UInt64)_white_id;
 
             return json_resp;
@@ -121,26 +109,16 @@ public:
         uint64_t winner_id = check_win(chess_row, chess_col, cur_col); // winner_id = 0表示没有玩家获胜
         if (winner_id != 0)
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = true;
             json_resp["reason"] = "five chess on one line, game over";
-            json_resp["room_id"] = (Json::UInt64)_room_id;
-            json_resp["uid"] = (Json::UInt64)cur_userId;
-            json_resp["row"] = chess_row;
-            json_resp["col"] = chess_col;
             json_resp["winner"] = (Json::UInt64)winner_id;
 
             return json_resp;
         }
         
         // 正常走棋
-        json_resp["optype"] = "put_chess";
         json_resp["result"] = true;
         json_resp["reason"] = "normal moves, game continues";
-        json_resp["room_id"] = (Json::UInt64)_room_id;
-        json_resp["uid"] = (Json::UInt64)cur_userId;
-        json_resp["row"] = chess_row;
-        json_resp["col"] = chess_col;
         json_resp["winner"] = (Json::UInt64)winner_id;
 
         return json_resp;
@@ -177,6 +155,7 @@ public:
         Json::Value json_resp;
         if (_status == GAME_START) // 游戏中，userId玩家退出
         {
+            uint64_t winner_id = userId == _white_id ? _black_id : _white_id;
             json_resp["optype"] = "put_chess";
             json_resp["result"] = true;
             json_resp["reason"] = "the other player drops out, wins without a fight";
@@ -184,13 +163,13 @@ public:
             json_resp["uid"] = (Json::UInt64)userId;
             json_resp["row"] = -1; // 玩家掉线，没有走棋
             json_resp["col"] = -1; // 玩家掉线，没有走棋
-            json_resp["winner"] = (Json::UInt64)(userId == _white_id ? _black_id : _white_id);
+            json_resp["winner"] = (Json::UInt64)winner_id;
 
             // 更新数据库中相关用户的信息
-            uint64_t winner_id = json_resp["winner"].asUInt64();
             uint64_t loser_id = winner_id == _white_id ? _black_id : _white_id;
             _user_tb->victory(winner_id);
             _user_tb->defeat(loser_id);
+            _status = GAME_OVER;
 
             broadcast(json_resp); // 广播给房间的其他用户
         }
@@ -214,7 +193,7 @@ public:
         else
         {
             // 2.根据不同的请求调用不同的处理函数
-            if (json_resp["optype"] == "put_chess")
+            if (req["optype"].asString() == "put_chess")
             {
                 json_resp = handle_chess(req);
 
@@ -230,13 +209,13 @@ public:
                     _status = GAME_OVER;
                 }
             }
-            else if (json_resp["optype"] == "chat")
+            else if (req["optype"].asString() == "chat")
             {
                 json_resp = handle_chat(req);
             }
             else
             {
-                json_resp["optype"] = req["optype"];
+                json_resp["optype"] = req["optype"].asString();
                 json_resp["result"] = false;
                 json_resp["reason"] = "unknown optype";
             }
@@ -310,7 +289,7 @@ private:
     uint64_t check_win(int row, int col, int color)
     {
         // 在下棋的位置检查四个方向是是否有五星连珠的情况(横行，纵列，正斜，反斜)
-        if (five(row, col, 0, 1, color) || five(row, col, 1, 0, color) || five(row, col, -1, 1, color) || five(row, col, 1, -1, color))
+        if (five(row, col, 0, 1, color) || five(row, col, 1, 0, color) || five(row, col, -1, 1, color) || five(row, col, -1, -1, color))
         {
             return color == CHESS_WHITE ? _white_id : _black_id;
         }
