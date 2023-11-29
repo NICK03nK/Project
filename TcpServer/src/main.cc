@@ -12,7 +12,8 @@ int main()
     while (buf.ReadableSize())
     {
         std::string line = buf.GetLineAndPop();
-        std::cout << line << std::endl;
+        // std::cout << line << std::endl;
+        INF_LOG("%s", line.c_str());
     }
 
     /*

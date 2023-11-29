@@ -3,7 +3,33 @@
 #include <cassert>
 #include <string>
 #include <cstring>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
 
+// 日志宏
+#define INF 0
+#define DBG 1
+#define ERR 2
+#define LOG_LEVEL INF
+#define LOG(level, format, ...)                                                             \
+    do                                                                                      \
+    {                                                                                       \
+        if (level < LOG_LEVEL) break;                                                       \
+        time_t t = time(NULL);                                                              \
+        struct tm *ltm = localtime(&t);                                                     \
+        char tmp[32] = {0};                                                                 \
+        strftime(tmp, 31, "%H:%M:%S", ltm);                                                 \
+        fprintf(stdout, "[%s %s:%d] " format "\n", tmp, __FILE__, __LINE__, ##__VA_ARGS__); \
+    } while (0)
+
+#define INF_LOG(format, ...) LOG(INF, format, ##__VA_ARGS__)
+#define DBG_LOG(format, ...) LOG(DBG, format, ##__VA_ARGS__)
+#define ERR_LOG(format, ...) LOG(ERR, format, ##__VA_ARGS__)
+
+// Buffer类
 #define BUFFER_DEFAULT_SIZE 1024
 class Buffer
 {
@@ -180,4 +206,200 @@ private:
     std::vector<char> _buffer; // 使用vector进行内存管理
     uint64_t _read_index;      // 读偏移
     uint64_t _write_index;     // 写偏移
+};
+
+// Socket类
+#define MAX_LISTEN 1024
+class Socket
+{
+public:
+    Socket() :_sockfd(-1) {}
+
+    Socket(int sockfd) :_sockfd(sockfd) {}
+
+    ~Socket() { Close(); }
+
+    // 创建套接字
+    bool Create()
+    {
+        // 调用socket()
+        _sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (_sockfd == -1)
+        {
+            ERR_LOG("create socket failed");
+            return false;
+        }
+        
+        return true;
+    }
+
+    // 绑定地址信息
+    bool Bind(const std::string& ip, uint16_t port)
+    {
+        // 定义一个struct sockaddr_in对象
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+        addr.sin_addr.s_addr = inet_addr(ip.c_str());
+        socklen_t len = sizeof(struct sockaddr_in);
+
+        // 调用bind()
+        int ret = bind(_sockfd, (struct sockaddr*)&addr, len);
+        if (ret == -1)
+        {
+            ERR_LOG("bind address failed");
+            return false;
+        }
+
+        return true;
+    }
+
+    // 开始监听
+    bool Listen(int backlog = MAX_LISTEN)
+    {
+        // 调用listen()
+        int ret = listen(_sockfd, backlog);
+        if (ret == -1)
+        {
+            ERR_LOG("socket listen failed");
+            return false;
+        }
+
+        return true;
+    }
+
+    // 向服务器发起连接（传入服务器的ip和port）
+    bool Connect(const std::string& ip, uint16_t port)
+    {
+        // 定义一个struct sockaddr_in对象
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+        addr.sin_addr.s_addr = inet_addr(ip.c_str());
+        socklen_t len = sizeof(struct sockaddr_in);
+
+        // 调用connect()
+        int ret = connect(_sockfd, (struct sockaddr*)&addr, len);
+        if (ret == -1)
+        {
+            ERR_LOG("connect server failed");
+            return false;
+        }
+
+        return true;
+    }
+
+    // 获取新连接
+    int Accept()
+    {
+        // 调用accept()
+        int ret = accept(_sockfd, NULL, NULL);
+        if (ret == -1)
+        {
+            ERR_LOG("socket accept failed");
+            return -1;
+        }
+
+        return ret;
+    }
+
+    // 接收数据
+    ssize_t Recv(void* buf, size_t len, int flag = 0) // flag = 0默认阻塞
+    {
+        // 调用recv()
+        ssize_t ret = recv(_sockfd, buf, len, flag);
+        if (ret <= 0)
+        {
+            // ret = EAGAIN 表示当前socket的接收缓冲区中没有数据，在非阻塞的情况下才会有这个返回值
+            // ret = EINTR 表示当前socket的阻塞等待被信号打断了
+            if (ret == EAGAIN || ret == EINTR)
+            {
+                return 0; // 表示此次接收没有收到数据
+            }
+
+            ERR_LOG("socket receive failed");
+            return -1;
+        }
+
+        return ret; // 返回实际接收到数据的字节数
+    }
+
+    ssize_t NonBlockRecv(void* buf, size_t len)
+    {
+        return Recv(buf, len, MSG_DONTWAIT); // MSG_DONTWAIT表示为非阻塞接收
+    }
+
+    // 发送数据
+    ssize_t Send(const void* buf, size_t len, int flag = 0) // flag = 0默认阻塞
+    {
+        // 调用send()
+        ssize_t ret = send(_sockfd, buf, len, flag);
+        if (ret == -1)
+        {
+            ERR_LOG("socket send failed");
+            return -1;
+        }
+
+        return ret; // 返回实际发送数据的字节数
+    }
+
+    ssize_t NonBlockSend(const void* buf, size_t len)
+    {
+        return Send(buf, len, MSG_DONTWAIT); // MSG_DONTWAIT表示为非阻塞发送
+    }
+    
+    // 关闭套接字
+    void Close()
+    {
+        if (_sockfd != -1)
+        {
+            close(_sockfd);
+            _sockfd = -1;
+        }
+    }
+
+    // 创建一个服务端连接
+    bool CreateServer(uint16_t port, const std::string& ip = "0.0.0.0", bool block_flag = false)
+    {
+        // 1.创建套接字，2.设置非阻塞，3.绑定ip和port，4.开始监听，5.启动地址重用
+        if (Create() == false) return false;
+        if (block_flag) NonBlock();
+        if (Bind(ip, port) == false) return false;
+        if (Listen() == false) return false;
+        ReuseAddress();
+
+        return true;
+    }
+
+    // 创建一个客户端连接
+    bool CreateClient(uint16_t port, const std::string& ip)
+    {
+        // 1.创建套接字，2.连接服务器
+        if (Create() == false) return false;
+        if (Connect(ip, port) == false) return false;
+
+        return true;
+    }
+
+    // 设置套接字选项——开启地址端口重用
+    void ReuseAddress()
+    {
+        // 调用setsockopt()
+        int opt = 1;
+        setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (void*)&opt, sizeof(opt));
+        opt = 1;
+        setsockopt(_sockfd, SOL_SOCKET, SO_REUSEPORT, (void*)&opt, sizeof(opt));
+    }
+
+    // 设置套接字阻塞属性——非阻塞
+    void NonBlock()
+    {
+        int flag = fcntl(_sockfd, F_GETFL);
+        fcntl(_sockfd, F_SETFL, flag | O_NONBLOCK);
+    }
+
+    int Fd() { return _sockfd; }
+
+private:
+    int _sockfd;
 };
