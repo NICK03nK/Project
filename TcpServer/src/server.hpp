@@ -8,6 +8,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <functional>
+#include <sys/epoll.h>
 
 // 日志宏
 #define INF 0
@@ -402,4 +404,126 @@ public:
 
 private:
     int _sockfd;
+};
+
+// Channel类
+class Channel
+{
+    using EventCallBack = std::function<void()>;
+public:
+    Channel(int fd)
+        :_fd(fd)
+        , _events(0)
+        , _revents(0)
+    {}
+
+    int Fd() { return _fd; }
+
+    void SetREvents(int events) { _revents = events; }  // EventLoop模块会调用该函数，EventLoop模块会将文件描述符实际触发的事件设置进_revents中
+
+    // 设置文件描述符的读事件回调函数
+    void SetReadCallBack(const EventCallBack& cb) { _read_callback = cb; }
+
+    // 设置文件描述符的写事件回调函数
+    void SetWriteCallBack(const EventCallBack& cb) { _write_callback = cb; }
+
+    // 设置文件描述符的挂断事件回调函数
+    void SetCloseCallBack(const EventCallBack& cb) { _close_callback = cb; }
+
+    // 设置文件描述符的错误事件回调函数
+    void SetErrorCallBack(const EventCallBack& cb) { _error_callback = cb; }
+
+    // 设置文件描述符的任意事件回调函数
+    void SetEventCallBack(const EventCallBack& cb) { _event_callback = cb; }
+
+    // 判断当前描述符是否监控了可读事件
+    bool ReadAble() { return (_events & EPOLLIN); }
+
+    // 判断当前描述符是否监控了可写事件
+    bool WriteAble() { return (_events & EPOLLOUT); }
+
+    // 启动描述符读事件监控
+    void EnableRead()
+    {
+        _events |= EPOLLIN;
+
+        // 后续会添加到EventLoop模块的事件监控中  TODO
+    }
+
+    // 启动描述符写事件监控
+    void EnableWrite()
+    {
+        _events |= EPOLLOUT;
+
+        // 后续会添加到EventLoop模块的事件监控中  TODO
+    }
+
+    // 解除描述符读事件监控
+    void DisableRead()
+    {
+        _events &= EPOLLIN;
+
+        // 后续会从EventLoop模块中进行修改  TODO
+    }
+
+    // 解除描述符写事件监控
+    void DisableWrite()
+    {
+        _events &= EPOLLOUT;
+
+        // 后续会从EventLoop模块中进行修改  TODO
+    }
+
+    // 解除描述符所有事件监控
+    void DisableAll() { _events = 0; }
+
+    // 将描述符从epoll模型中移除监控
+    void Remove()
+    {
+        // 后续要调用EventLoop模块的接口来实现  TODO
+    }
+
+    // 事件处理总函数
+    void HandleEvent()
+    {
+        if ((_revents & EPOLLIN) || (_revents & EPOLLRDHUP) || (_revents & EPOLLPRI))
+        {
+            if (_read_callback) _read_callback();
+
+            // 文件描述符触发任意事件都要调用任意事件回调函数
+            if (_event_callback) _event_callback();
+        }
+
+        // 可能会释放连接的操作事件，一次只处理一个
+        if (_revents & EPOLLOUT)
+        {
+            if (_write_callback) _write_callback();
+
+            // 文件描述符触发任意事件都要调用任意事件回调函数
+            if (_event_callback) _event_callback();
+        }
+        else if (_revents & EPOLLHUP)
+        {
+            if (_event_callback) _event_callback();
+
+            if (_close_callback) _close_callback();
+        }
+        else if (_revents & EPOLLERR)
+        {
+            if (_event_callback) _event_callback();
+            
+            if (_error_callback) _error_callback();
+        }
+    }
+
+private:
+    int _fd;           // 文件描述符 
+    uint32_t _events;  // 当前需要监控的事件
+    uint32_t _revents; // 当前连接触发的事件
+
+    EventCallBack _read_callback;  // 可读事件被触发的回调函数
+    EventCallBack _write_callback; // 可写事件被触发的回调函数
+    EventCallBack _close_callback; // 挂断事件被触发的回调函数
+    EventCallBack _error_callback; // 错误事件被触发的回调函数
+    EventCallBack _event_callback; // 任意事件被触发的回调函数
 };
