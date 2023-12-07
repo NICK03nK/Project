@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <functional>
 #include <sys/epoll.h>
+#include <unordered_map>
 
 // 日志宏
 #define INF 0
@@ -407,19 +408,25 @@ private:
 };
 
 // Channel类
+class Poller; // Poller类的声明，让Channel能够使用Poller类
 class Channel
 {
     using EventCallBack = std::function<void()>;
 public:
-    Channel(int fd)
-        :_fd(fd)
+    Channel(Poller* poller, int fd)
+        :_poller(poller)
+        , _fd(fd)
         , _events(0)
         , _revents(0)
     {}
 
     int Fd() { return _fd; }
 
-    void SetREvents(int events) { _revents = events; }  // EventLoop模块会调用该函数，EventLoop模块会将文件描述符实际触发的事件设置进_revents中
+    // 获取文件描述符想要监控的事件
+    uint32_t Events() { return _events; } 
+
+    // 设置实际就绪的事件
+    void SetREvents(uint32_t events) { _revents = events; }  // EventLoop模块会调用该函数，EventLoop模块会将文件描述符实际触发的事件设置进_revents中
 
     // 设置文件描述符的读事件回调函数
     void SetReadCallBack(const EventCallBack& cb) { _read_callback = cb; }
@@ -447,7 +454,7 @@ public:
     {
         _events |= EPOLLIN;
 
-        // 后续会添加到EventLoop模块的事件监控中  TODO
+        Update();
     }
 
     // 启动描述符写事件监控
@@ -455,52 +462,51 @@ public:
     {
         _events |= EPOLLOUT;
 
-        // 后续会添加到EventLoop模块的事件监控中  TODO
+        Update();
     }
 
     // 解除描述符读事件监控
     void DisableRead()
     {
-        _events &= EPOLLIN;
+        _events &= ~EPOLLIN;
 
-        // 后续会从EventLoop模块中进行修改  TODO
+        Update();
     }
 
     // 解除描述符写事件监控
     void DisableWrite()
     {
-        _events &= EPOLLOUT;
+        _events &= ~EPOLLOUT;
 
-        // 后续会从EventLoop模块中进行修改  TODO
+        Update();
     }
 
     // 解除描述符所有事件监控
     void DisableAll() { _events = 0; }
 
+    void Update();
+
     // 将描述符从epoll模型中移除监控
-    void Remove()
-    {
-        // 后续要调用EventLoop模块的接口来实现  TODO
-    }
+    void Remove();
 
     // 事件处理总函数
     void HandleEvent()
     {
         if ((_revents & EPOLLIN) || (_revents & EPOLLRDHUP) || (_revents & EPOLLPRI))
         {
-            if (_read_callback) _read_callback();
-
             // 文件描述符触发任意事件都要调用任意事件回调函数
             if (_event_callback) _event_callback();
+
+            if (_read_callback) _read_callback();
         }
 
         // 可能会释放连接的操作事件，一次只处理一个
         if (_revents & EPOLLOUT)
         {
-            if (_write_callback) _write_callback();
-
             // 文件描述符触发任意事件都要调用任意事件回调函数
             if (_event_callback) _event_callback();
+            
+            if (_write_callback) _write_callback();
         }
         else if (_revents & EPOLLHUP)
         {
@@ -517,6 +523,8 @@ public:
     }
 
 private:
+    Poller* _poller;
+
     int _fd;           // 文件描述符 
     uint32_t _events;  // 当前需要监控的事件
     uint32_t _revents; // 当前连接触发的事件
@@ -527,3 +535,110 @@ private:
     EventCallBack _error_callback; // 错误事件被触发的回调函数
     EventCallBack _event_callback; // 任意事件被触发的回调函数
 };
+
+// Poller类
+#define MAX_EPOLLEVENTS 1024
+class Poller
+{
+public:
+    Poller()
+    {
+        _epfd = epoll_create(MAX_EPOLLEVENTS);
+        if (_epfd == -1)
+        {
+            ERR_LOG("epoll create failed");
+            abort(); // 退出程序
+        }
+    }
+
+    // 添加或修改文件描述符的监控事件
+    void UpdateEvent(Channel* channel)
+    {
+        // 先判断是否在hash中管理，不在则添加；在则修改
+        bool ret = HasChannel(channel);
+        if (ret == false)
+        {
+            // 将该channel和其对应的文件描述符添加到_channels中
+            _channels.insert(std::make_pair(channel->Fd(), channel));
+
+            return Update(channel, EPOLL_CTL_ADD);
+        }
+
+        return Update(channel, EPOLL_CTL_MOD);
+    }
+
+    // 移除文件描述符的事件监控
+    void RemoveEvent(Channel* channel)
+    {
+        // 从hash中移除
+        auto it = _channels.find(channel->Fd());
+        if (it != _channels.end())
+        {
+            _channels.erase(it);
+        }
+
+        // 删除监控事件
+        Update(channel, EPOLL_CTL_DEL);
+    }
+
+    // 开始监控，返回活跃连接
+    void Poll(std::vector<Channel*>* active)
+    {
+        // 调用epoll_wait()
+        int nfds = epoll_wait(_epfd, _evs, MAX_EPOLLEVENTS, -1);
+        if (nfds == -1)
+        {
+            if (errno == EINTR) return;
+
+            ERR_LOG("epoll wait error:%s", strerror(errno));
+            abort(); // 退出程序
+        }
+
+        for (int i = 0; i < nfds; ++i)
+        {
+            auto it = _channels.find(_evs[i].data.fd);
+            assert(it != _channels.end());
+
+            it->second->SetREvents(_evs[i].events); // 将实际就绪事件设置到对应文件描述符的Channel对象中
+            active->push_back(it->second);
+        }
+    }
+
+private:
+    // 对epoll直接操作（增，删，改）
+    void Update(Channel* channel, int op)
+    {
+        // 调用epoll_ctl()
+        int fd = channel->Fd();
+        struct epoll_event ev;
+        ev.data.fd = fd;
+        ev.events = channel->Events();
+
+        int ret = epoll_ctl(_epfd, op, fd, &ev);
+        if (ret == -1)
+        {
+            ERR_LOG("epoll_ctl failed");
+        }
+    }
+
+    // 判断一个Channel对象是否添加了事件监控（是否在hash中管理）
+    bool HasChannel(Channel* channel)
+    {
+        auto it = _channels.find(channel->Fd());
+        if (it == _channels.end())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+private:
+    int _epfd;
+    struct epoll_event _evs[MAX_EPOLLEVENTS];
+    std::unordered_map<int, Channel*> _channels;
+};
+
+// Channel类中的两个成员函数
+void Channel::Update() { return _poller->UpdateEvent(this); }
+void Channel::Remove() { return _poller->RemoveEvent(this); }
