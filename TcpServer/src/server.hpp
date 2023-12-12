@@ -11,6 +11,10 @@
 #include <functional>
 #include <sys/epoll.h>
 #include <unordered_map>
+#include <mutex>
+#include <thread>
+#include <sys/eventfd.h>
+#include <memory>
 
 // 日志宏
 #define INF 0
@@ -409,12 +413,13 @@ private:
 
 // Channel类
 class Poller; // Poller类的声明，让Channel能够使用Poller类
+class EventLoop; // EventLoop类的声明，让Channel能够使用EventLoop类
 class Channel
 {
     using EventCallBack = std::function<void()>;
 public:
-    Channel(Poller* poller, int fd)
-        :_poller(poller)
+    Channel(EventLoop* loop, int fd)
+        :_loop(loop)
         , _fd(fd)
         , _events(0)
         , _revents(0)
@@ -523,7 +528,7 @@ public:
     }
 
 private:
-    Poller* _poller;
+    EventLoop* _loop;
 
     int _fd;           // 文件描述符 
     uint32_t _events;  // 当前需要监控的事件
@@ -639,6 +644,144 @@ private:
     std::unordered_map<int, Channel*> _channels;
 };
 
+class EventLoop
+{
+    using Functor = std::function<void()>;
+public:
+    EventLoop()
+        :_id(std::this_thread::get_id())
+        , _eventfd(CreateEventFd())
+        , _event_channel(new Channel(this, _eventfd))
+    {
+        // 设置_eventfd读事件回调函数，读取eventfd事件通知次数
+        _event_channel->SetReadCallBack(std::bind(&EventLoop::ReadEventFd, this));
+
+        // 启动_eventfd的读事件监控
+        _event_channel->EnableRead();
+    }
+
+    // 三步走：事件监控-> 就绪事件处理-> 执行任务池中的任务
+    void Start()
+    {
+        // 1.事件监控
+        std::vector<Channel*> actives_channels;
+        _poller.Poll(&actives_channels);
+
+        // 2.就绪事件处理
+        for (const auto& channel : actives_channels)
+        {
+            channel->HandleEvent();
+        }
+
+        // 3.执行线程池中的任务
+        RunAllTask();
+    }
+
+    // 判断当前线程是否是EventLoop对应的线程
+    bool IsInLoop() { return _id == std::this_thread::get_id(); }
+
+    // 判断将要执行的任务是否在当前线程中，是则执行；不是则加入任务池中
+    void RunInLoop(const Functor& cb)
+    {
+        // 要执行任务在当前线程中，直接调用执行
+        if (IsInLoop()) cb();
+
+        // 要执行任务不在当前线程中，将任务加入任务池中
+        QueueInLoop(cb);
+    }
+
+    // 将操作加入任务池中
+    void QueueInLoop(const Functor& cb)
+    {
+        {
+            std::unique_lock<std::mutex> _lock(_mutex);
+
+            _tasks.push_back(cb);
+        }
+
+        // 唤醒IO事件监控有可能导致的阻塞
+        WakeUpEventFd();
+    }
+
+    // 添加或修改文件描述符的监控事件
+    void UpdateEvent(Channel* channel) { return _poller.UpdateEvent(channel); }
+
+    // 移除文件描述符的事件监控
+    void RemoveEvent(Channel* channel) { return _poller.RemoveEvent(channel); }
+
+private:
+    // 执行任务池中的所有任务
+    void RunAllTask()
+    {
+        std::vector<Functor> functors;
+        {
+            std::unique_lock<std::mutex> _lock(_mutex);
+             
+            _tasks.swap(functors);
+        }
+        
+        for (const auto& f : functors)
+        {
+            f();
+        }
+    }
+
+    static int CreateEventFd()
+    {
+        int efd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (efd == -1)
+        {
+            ERR_LOG("create eventfd failed");
+            abort(); // 让程序异常退出
+        }
+
+        return efd;
+    }
+
+    void ReadEventFd()
+    {
+        uint64_t res = 0;
+        int ret = read(_eventfd, &res, sizeof(res));
+        if (ret < 0)
+        {
+            // EINTR -- 表示被信号打断    EAGAIN -- 表示无数据可读
+            if (errno == EINTR || errno == EAGAIN)
+            {
+                return;
+            }
+
+            ERR_LOG("read eventfd failed");
+            abort();
+        }
+    }
+
+    // 本质是向eventfd中写入数据
+    void WakeUpEventFd()
+    {
+        uint64_t val = 1;
+        int ret = write(_eventfd, &val, sizeof(val));
+        if (ret < 0)
+        {
+            // EINTR -- 表示被信号打断
+            if (errno == EINTR)
+            {
+                return;
+            }
+
+            ERR_LOG("write eventfd failed");
+            abort();
+        }
+    }
+
+private:
+    std::thread::id _id;                       // 线程ID
+    int _eventfd;                              // 用于唤醒IO事件监控有可能导致的阻塞
+    std::unique_ptr<Channel> _event_channel;   // 用于管理_eventfd的事件监控
+    Poller _poller;                            // 用于进行所有文件描述符的事件监控
+    std::vector<Functor> _tasks;               // 任务池
+    std::mutex _mutex;                         // 保证任务池操作的线程安全
+};
+
 // Channel类中的两个成员函数
-void Channel::Update() { return _poller->UpdateEvent(this); }
-void Channel::Remove() { return _poller->RemoveEvent(this); }
+void Channel::Update() { return _loop->UpdateEvent(this); }
+void Channel::Remove() { return _loop->RemoveEvent(this); }

@@ -76,12 +76,12 @@ int main()
 
     while (true)
     {
-        std::vector<Channel*> actives;
-        poller.Poll(&actives);
+        std::vector<Channel*> actives_channels;
+        poller.Poll(&actives_channels);
 
-        for (const auto& a : actives)
+        for (const auto& channel : actives_channels)
         {
-            a->HandleEvent(); // 处理活跃的Channel对象的触发事件
+            channel->HandleEvent(); // 处理活跃的Channel对象的触发事件
         }
     }
     lst_sock.Close();
