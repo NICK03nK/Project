@@ -2,7 +2,7 @@
 
 void HandleClose(Channel* channel)
 {
-    std::cout << "close: " << channel->Fd() << std::endl;
+    DBG_LOG("close fd: %d", channel->Fd());
     channel->Remove(); // 移除监控
     delete channel; // 将先前new出来的Channel对象释放
 }
@@ -18,7 +18,7 @@ void HandleRead(Channel* channel)
         return HandleClose(channel);
     }
 
-    std::cout << buf << std::endl;
+    DBG_LOG("%s", buf);
 
     channel->EnableWrite(); // 启动可写事件
 }
@@ -41,9 +41,9 @@ void HandleError(Channel* channel)
     return HandleClose(channel);
 }
 
-void HandleEvent(Channel* channel)
+void HandleEvent(EventLoop* loop, Channel* channel, uint64_t timerid)
 {
-    std::cout << "get a event" << std::endl;
+    loop->TimerRefresh(timerid);
 }
 
 void Acceptor(EventLoop* loop, Channel* lst_channel)
@@ -52,18 +52,25 @@ void Acceptor(EventLoop* loop, Channel* lst_channel)
     int newfd = accept(fd, NULL, NULL);
     if (newfd < 0) return;
 
+    uint64_t timerid = rand() % 10000;
+
     Channel* channel = new Channel(loop, newfd);
     channel->SetReadCallBack(std::bind(HandleRead, channel));
     channel->SetWriteCallBack(std::bind(HandleWrite, channel));
     channel->SetCloseCallBack(std::bind(HandleClose, channel));
     channel->SetErrorCallBack(std::bind(HandleError, channel));
-    channel->SetEventCallBack(std::bind(HandleEvent, channel));
+    channel->SetEventCallBack(std::bind(HandleEvent, loop, channel, timerid));
+
+    // 非活跃连接的超时释放操作
+    loop->TimerAdd(timerid, 10, std::bind(HandleClose, channel));
 
     channel->EnableRead();
 }
 
 int main()
 {
+    srand(time(NULL));
+
     EventLoop loop;
     
     Socket lst_sock;

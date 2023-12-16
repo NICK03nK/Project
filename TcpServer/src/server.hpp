@@ -845,14 +845,17 @@ public:
     // 三步走：事件监控-> 就绪事件处理-> 执行任务池中的任务
     void Start()
     {
-        // 1.事件监控
-        std::vector<Channel*> actives_channels;
-        _poller.Poll(&actives_channels);
-
-        // 2.就绪事件处理
-        for (const auto& channel : actives_channels)
+        while (true)
         {
-            channel->HandleEvent();
+            // 1.事件监控
+            std::vector<Channel *> actives_channels;
+            _poller.Poll(&actives_channels);
+
+            // 2.就绪事件处理
+            for (const auto &channel : actives_channels)
+            {
+                channel->HandleEvent();
+            }
         }
 
         // 3.执行线程池中的任务

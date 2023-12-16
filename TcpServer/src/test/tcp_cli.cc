@@ -5,7 +5,7 @@ int main()
     Socket cli_sock;
     cli_sock.CreateClient(8080, "127.0.0.1");
 
-    while (true)
+    for (int i = 0; i < 5; ++i)
     {
         std::string str = "hello world";
         cli_sock.Send(str.c_str(), str.size());
@@ -15,6 +15,8 @@ int main()
         DBG_LOG("%s", buf);
         sleep(1);
     }
+
+    while (true) sleep(1);
 
     return 0;
 }
