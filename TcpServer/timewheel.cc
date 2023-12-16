@@ -43,7 +43,7 @@ public:
 private:
     uint64_t _id;         // 定时任务对象id
     uint32_t _timeout;    // 定时任务的超时时间
-    bool _canceled;        // true--取消定时任务，false--不取消
+    bool _canceled;       // true--取消定时任务，false--不取消
     TaskFunc _task_cb;    // 定时器要执行的定时任务
     ReleaseFunc _release; // 用于删除TimerWheel中保存的定时任务对象信息(删除unordered_map中的元素)
 };

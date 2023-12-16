@@ -46,13 +46,13 @@ void HandleEvent(Channel* channel)
     std::cout << "get a event" << std::endl;
 }
 
-void Acceptor(Poller* poller, Channel* lst_channel)
+void Acceptor(EventLoop* loop, Channel* lst_channel)
 {
     int fd = lst_channel->Fd();
     int newfd = accept(fd, NULL, NULL);
     if (newfd < 0) return;
 
-    Channel* channel = new Channel(poller, newfd);
+    Channel* channel = new Channel(loop, newfd);
     channel->SetReadCallBack(std::bind(HandleRead, channel));
     channel->SetWriteCallBack(std::bind(HandleWrite, channel));
     channel->SetCloseCallBack(std::bind(HandleClose, channel));
@@ -64,25 +64,19 @@ void Acceptor(Poller* poller, Channel* lst_channel)
 
 int main()
 {
-    Poller poller;
+    EventLoop loop;
     
     Socket lst_sock;
     lst_sock.CreateServer(8080);
 
     // 为监听套接字创建一个Channel对象，进行事件的管理以及事件的处理
-    Channel channel(&poller, lst_sock.Fd());
-    channel.SetReadCallBack(std::bind(Acceptor, &poller, &channel));
+    Channel channel(&loop, lst_sock.Fd());
+    channel.SetReadCallBack(std::bind(Acceptor, &loop, &channel));
     channel.EnableRead(); // 启动监听套接字读事件监控
 
     while (true)
     {
-        std::vector<Channel*> actives_channels;
-        poller.Poll(&actives_channels);
-
-        for (const auto& channel : actives_channels)
-        {
-            channel->HandleEvent(); // 处理活跃的Channel对象的触发事件
-        }
+        loop.Start();
     }
     lst_sock.Close();
 

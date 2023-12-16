@@ -15,6 +15,7 @@
 #include <thread>
 #include <sys/eventfd.h>
 #include <memory>
+#include <sys/timerfd.h>
 
 // 日志宏
 #define INF 0
@@ -644,6 +645,186 @@ private:
     std::unordered_map<int, Channel*> _channels;
 };
 
+using TaskFunc = std::function<void()>;
+using ReleaseFunc = std::function<void()>;
+
+// 定时器任务类
+class TimerTask
+{
+public:
+    TimerTask(uint64_t id, uint32_t delay, const TaskFunc& cb)
+        :_id(id)
+        , _timeout(delay)
+        , _canceled(false)
+        , _task_cb(cb)
+    {}
+
+    void SetRelease(const ReleaseFunc& cb)
+    {
+        _release = cb;
+    }
+
+    uint32_t DelayTime()
+    {
+        return _timeout;
+    }
+
+    void Cancel()
+    {
+        _canceled = true;
+    }
+
+    ~TimerTask()
+    {
+        if (_canceled == false) _task_cb();
+        _release();
+    }
+
+private:
+    uint64_t _id;         // 定时任务对象id
+    uint32_t _timeout;    // 定时任务的超时时间
+    bool _canceled;       // true--取消定时任务，false--不取消
+    TaskFunc _task_cb;    // 定时器要执行的定时任务
+    ReleaseFunc _release; // 用于删除TimerWheel中保存的定时任务对象信息(删除unordered_map中的元素)
+};
+
+// 时间轮类
+class TimerWheel
+{
+public:
+    TimerWheel(EventLoop* loop)
+        :_tick(0)
+        , _capacity(60)
+        , _wheel(_capacity)
+        , _loop(loop)
+        , _timerfd(CreateTimerFd())
+        , _timer_channel(new Channel(_loop, _timerfd))
+    {
+        _timer_channel->SetReadCallBack(std::bind(&TimerWheel::OnTime, this));
+        _timer_channel->EnableRead(); // 启动定时器文件描述符的读事件监控
+    }
+
+    bool HasTimer(uint64_t id) // 该接口存在线程安全问题！不能被外界使用者调用，只能在模块内，在对应的EventLoop线程内执行
+    {
+        auto it = _timers.find(id);
+        if (it == _timers.end()) return false;
+
+        return true;
+    }
+
+    void TimerAdd(uint64_t id, uint32_t delay, const TaskFunc &cb);
+
+    void TimerRefresh(uint64_t id);
+
+    void TimerCancel(uint64_t id);
+
+private:
+    void RemoveTimer(uint64_t id)
+    {
+        auto it = _timers.find(id);
+        if (it != _timers.end())
+        {
+            _timers.erase(it);
+        }
+    }
+
+    static int CreateTimerFd()
+    {
+        int timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
+        if (timerfd < 0)
+        {
+            ERR_LOG("timerfd create failede");
+            abort();
+        }
+
+        struct itimerspec itime;
+
+        // 第一次超时时间为1s后
+        itime.it_value.tv_sec = 1;
+        itime.it_value.tv_nsec = 0;
+
+        // 第一次超时后，每次超时的间隔时间为1s
+        itime.it_interval.tv_sec = 1;
+        itime.it_interval.tv_nsec = 0;
+
+        timerfd_settime(timerfd, 0, &itime, nullptr);
+
+        return timerfd;
+    }
+
+    void ReadTimerFd()
+    {
+        uint64_t times;
+        int ret = read(_timerfd, &times, 8);
+        if (ret < 0)
+        {
+            ERR_LOG("read timerfd failed");
+            abort();
+        }
+    }
+
+    // 时间轮定时任务执行函数(该函数每秒执行一次)
+    void RunTimerTask()
+    {
+        _tick = (_tick + 1) % _capacity;
+        _wheel[_tick].clear(); // 清空指针位置上的数组，将所有管理定时任务对象的shared_ptr给释放掉
+    }
+
+    void OnTime()
+    {
+        ReadTimerFd();
+        RunTimerTask();
+    }
+
+    // 添加定时任务
+    void TimerAddInLoop(uint64_t id, uint32_t delay, const TaskFunc& cb)
+    {
+        SharedTask st(new TimerTask(id, delay, cb));
+        st->SetRelease(std::bind(&TimerWheel::RemoveTimer, this, id));
+        _timers[id] = WeakTask(st);
+
+        // 将定时任务添加到时间轮中
+        int pos = (_tick + delay) % _capacity;
+        _wheel[pos].push_back(st);
+    }
+
+    // 刷新/延迟定时任务
+    void TimerRefreshInLoop(uint64_t id)
+    {
+        // 通过定时器对象的weak_ptr构造一个shared_ptr，再添加到时间轮中
+        auto it = _timers.find(id);
+        if (it == _timers.end()) return;
+
+        SharedTask st = it->second.lock();
+        int delay = st->DelayTime();
+        int pos = (_tick + delay) % _capacity;
+        _wheel[pos].push_back(st);
+    }
+
+    void TimerCancelInLoop(uint64_t id)
+    {
+        auto it = _timers.find(id);
+        if (it == _timers.end()) return;
+
+        SharedTask st = it->second.lock();
+        if (st) st->Cancel();
+    }
+
+private:
+    using SharedTask = std::shared_ptr<TimerTask>;
+    using WeakTask = std::weak_ptr<TimerTask>;
+
+    int _tick;                                      // 当前的秒针(走到哪里释放哪里，释放哪里就相当于执行哪里的定时任务)
+    int _capacity;                                  // 轮的最大数量（最大延迟时间）
+    std::vector<std::vector<SharedTask>> _wheel;    // 时间轮
+    std::unordered_map<uint64_t, WeakTask> _timers; // 将定时任务id和管理定时任务的weak_ptr绑定
+
+    EventLoop* _loop;
+    int _timerfd; // 定时器文件描述符
+    std::unique_ptr<Channel> _timer_channel;
+};
+
+// EventLoop类
 class EventLoop
 {
     using Functor = std::function<void()>;
@@ -652,6 +833,7 @@ public:
         :_id(std::this_thread::get_id())
         , _eventfd(CreateEventFd())
         , _event_channel(new Channel(this, _eventfd))
+        , _timer_wheel(this)
     {
         // 设置_eventfd读事件回调函数，读取eventfd事件通知次数
         _event_channel->SetReadCallBack(std::bind(&EventLoop::ReadEventFd, this));
@@ -708,6 +890,14 @@ public:
 
     // 移除文件描述符的事件监控
     void RemoveEvent(Channel* channel) { return _poller.RemoveEvent(channel); }
+
+    void TimerAdd(uint64_t id, uint32_t delay, const TaskFunc& cb) { return _timer_wheel.TimerAdd(id, delay, cb); }
+
+    void TimerRefresh(uint64_t id) { return _timer_wheel.TimerRefresh(id); }
+
+    void TimerCancel(uint64_t id) { return _timer_wheel.TimerCancel(id); }
+
+    bool HasTimer(uint64_t id) { return _timer_wheel.HasTimer(id); }
 
 private:
     // 执行任务池中的所有任务
@@ -780,8 +970,23 @@ private:
     Poller _poller;                            // 用于进行所有文件描述符的事件监控
     std::vector<Functor> _tasks;               // 任务池
     std::mutex _mutex;                         // 保证任务池操作的线程安全
+    TimerWheel _timer_wheel;                   // 定时器模块
 };
 
 // Channel类中的两个成员函数
 void Channel::Update() { return _loop->UpdateEvent(this); }
 void Channel::Remove() { return _loop->RemoveEvent(this); }
+
+// TimerWheel类中的三个成员函数
+void TimerWheel::TimerAdd(uint64_t id, uint32_t delay, const TaskFunc &cb)
+{
+    _loop->RunInLoop(std::bind(&TimerWheel::TimerAddInLoop, this, id, delay, cb));
+}
+void TimerWheel::TimerRefresh(uint64_t id)
+{
+    _loop->RunInLoop(std::bind(&TimerWheel::TimerRefreshInLoop, this, id));
+}
+void TimerWheel::TimerCancel(uint64_t id)
+{
+    _loop->RunInLoop(std::bind(&TimerWheel::TimerCancelInLoop, this, id));
+}

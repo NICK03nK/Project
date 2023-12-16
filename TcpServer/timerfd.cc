@@ -24,18 +24,22 @@ int main()
 
     timerfd_settime(timerfd, 0, &itime, nullptr);
 
-    while (true)
+    int i = 3;
+    while (i--)
     {
-        uint64_t times;
-        int ret = read(timerfd, &times, 8);
-        if (ret < 0)
-        {
-            perror("read error");
-            return -1;
-        }
-
-        std::cout << "距离上一次超时了" << times << "次" << std::endl;
+        std::cout << "sleep" << std::endl;
+        sleep(1);
     }
+
+    uint64_t times;
+    int ret = read(timerfd, &times, 8);
+    if (ret < 0)
+    {
+        perror("read error");
+        return -1;
+    }
+
+    std::cout << times << std::endl;
 
     close(timerfd);
 
