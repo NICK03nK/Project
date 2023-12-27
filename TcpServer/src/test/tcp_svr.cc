@@ -1,49 +1,28 @@
 #include "../server.hpp"
 
-void HandleClose(Channel* channel)
+// 管理所有的连接
+std::unordered_map<uint64_t, SharedConnection> _conns;
+
+uint64_t conn_id = 0;
+
+void ConnectionDestroy(const SharedConnection& conn)
 {
-    DBG_LOG("close fd: %d", channel->Fd());
-    channel->Remove(); // 移除监控
-    delete channel; // 将先前new出来的Channel对象释放
+    _conns.erase(conn->Id());
 }
 
-void HandleRead(Channel* channel)
+void OnConnected(const SharedConnection& conn)
 {
-    int fd = channel->Fd();
-    char buf[1024] = { 0 };
-
-    int ret = recv(fd, buf, 1023, 0);
-    if (ret <= 0)
-    {
-        return HandleClose(channel);
-    }
-
-    DBG_LOG("%s", buf);
-
-    channel->EnableWrite(); // 启动可写事件
+    DBG_LOG("new connection: %p", conn.get());
 }
 
-void HandleWrite(Channel* channel)
+void OnMessage(const SharedConnection& conn, Buffer* buf)
 {
-    int fd = channel->Fd();
-    const char* data = "hi";
-    int ret = send(fd, data, strlen(data), 0);
-    if (ret < 0)
-    {
-        return HandleClose(channel);
-    }
+    DBG_LOG("%s", buf->GetReadPos());
+    buf->MoveReadOffset(buf->ReadableSize()); // 将读偏移向后移动，将可读数据全部读出来
 
-    channel->DisableWrite(); // 关闭写监控
-}
-
-void HandleError(Channel* channel)
-{
-    return HandleClose(channel);
-}
-
-void HandleEvent(EventLoop* loop, Channel* channel, uint64_t timerid)
-{
-    loop->TimerRefresh(timerid);
+    std::string str = "hello nK!!";
+    conn->Send(str.c_str(), str.size());
+    conn->Shutdown();
 }
 
 void Acceptor(EventLoop* loop, Channel* lst_channel)
@@ -52,25 +31,21 @@ void Acceptor(EventLoop* loop, Channel* lst_channel)
     int newfd = accept(fd, NULL, NULL);
     if (newfd < 0) return;
 
-    uint64_t timerid = rand() % 10000;
+    ++conn_id;
 
-    Channel* channel = new Channel(loop, newfd);
-    channel->SetReadCallBack(std::bind(HandleRead, channel));
-    channel->SetWriteCallBack(std::bind(HandleWrite, channel));
-    channel->SetCloseCallBack(std::bind(HandleClose, channel));
-    channel->SetErrorCallBack(std::bind(HandleError, channel));
-    channel->SetEventCallBack(std::bind(HandleEvent, loop, channel, timerid));
+    SharedConnection conn(new Connection(loop, conn_id, newfd));
+    conn->SetConnectedCallback(std::bind(OnConnected, std::placeholders::_1));
+    conn->SetMessageCallback(std::bind(OnMessage, std::placeholders::_1, std::placeholders::_2));
+    conn->SetServerClosedCallback(std::bind(ConnectionDestroy, std::placeholders::_1));
 
-    // 非活跃连接的超时释放操作
-    loop->TimerAdd(timerid, 10, std::bind(HandleClose, channel));
+    conn->EnableInactiveRelease(10); // 启动非活跃连接销毁
+    conn->Established(); // 就绪初始化
 
-    channel->EnableRead();
+    _conns.insert(std::make_pair(conn_id, conn));
 }
 
 int main()
 {
-    srand(time(NULL));
-
     EventLoop loop;
     
     Socket lst_sock;
@@ -78,7 +53,7 @@ int main()
 
     // 为监听套接字创建一个Channel对象，进行事件的管理以及事件的处理
     Channel channel(&loop, lst_sock.Fd());
-    channel.SetReadCallBack(std::bind(Acceptor, &loop, &channel));
+    channel.SetReadCallback(std::bind(Acceptor, &loop, &channel));
     channel.EnableRead(); // 启动监听套接字读事件监控
 
     while (true)
