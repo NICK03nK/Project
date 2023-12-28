@@ -2,8 +2,8 @@
 
 // 管理所有的连接
 std::unordered_map<uint64_t, SharedConnection> _conns;
-
 uint64_t conn_id = 0;
+EventLoop loop;
 
 void ConnectionDestroy(const SharedConnection& conn)
 {
@@ -25,15 +25,11 @@ void OnMessage(const SharedConnection& conn, Buffer* buf)
     conn->Shutdown();
 }
 
-void Acceptor(EventLoop* loop, Channel* lst_channel)
+void NewConnection(int fd)
 {
-    int fd = lst_channel->Fd();
-    int newfd = accept(fd, NULL, NULL);
-    if (newfd < 0) return;
-
     ++conn_id;
 
-    SharedConnection conn(new Connection(loop, conn_id, newfd));
+    SharedConnection conn(new Connection(&loop, conn_id, fd));
     conn->SetConnectedCallback(std::bind(OnConnected, std::placeholders::_1));
     conn->SetMessageCallback(std::bind(OnMessage, std::placeholders::_1, std::placeholders::_2));
     conn->SetServerClosedCallback(std::bind(ConnectionDestroy, std::placeholders::_1));
@@ -46,21 +42,14 @@ void Acceptor(EventLoop* loop, Channel* lst_channel)
 
 int main()
 {
-    EventLoop loop;
-    
-    Socket lst_sock;
-    lst_sock.CreateServer(8080);
-
-    // 为监听套接字创建一个Channel对象，进行事件的管理以及事件的处理
-    Channel channel(&loop, lst_sock.Fd());
-    channel.SetReadCallback(std::bind(Acceptor, &loop, &channel));
-    channel.EnableRead(); // 启动监听套接字读事件监控
+    Acceptor acceptor(&loop, 8080);
+    acceptor.SetAcceptCallback(std::bind(NewConnection, std::placeholders::_1));
+    acceptor.Listen();
 
     while (true)
     {
         loop.Start();
     }
-    lst_sock.Close();
 
     return 0;
 }

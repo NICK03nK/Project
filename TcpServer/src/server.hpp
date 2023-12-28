@@ -991,6 +991,7 @@ private:
     TimerWheel _timer_wheel;                   // 定时器模块
 };
 
+// Any类
 class Any
 {
 public:
@@ -1068,6 +1069,7 @@ private:
     holder* _content;
 };
 
+// Connection类
 class Connection;
 typedef enum
 {
@@ -1381,6 +1383,51 @@ private:
     // 组件内的连接关闭回调--组件内设置的，因为服务器组件内会把所有的连接
     // 管理起来，一旦某个连接要关闭，就应该从管理的地方移除掉自己的信息
     ClosedCallback _server_closeed_callback;
+};
+
+// Acceptor类
+class Acceptor
+{
+    using AcceptCallback = std::function<void(int)>;
+public:
+    Acceptor(EventLoop* loop, uint16_t port)
+        :_socket(CreateServer(port))
+        , _loop(loop)
+        , _channel(loop, _socket.Fd())
+    {
+        _channel.SetReadCallback(std::bind(&Acceptor::HandleRead, this));
+    }
+
+    void Listen() { _channel.EnableRead(); }
+
+    void SetAcceptCallback(const AcceptCallback& cb) { _accept_callback = cb; }
+
+private:
+    void HandleRead()
+    {
+        int newfd = _socket.Accept();
+        if (newfd < 0)
+        {
+            return;
+        }
+
+        if (_accept_callback) _accept_callback(newfd);
+    }
+
+    int CreateServer(uint16_t port)
+    {
+        bool ret = _socket.CreateServer(port);
+        assert(ret == true);
+        
+        return _socket.Fd();
+    }
+
+private:
+    Socket _socket;   // 用于创建监听套接字
+    EventLoop* _loop; // 用于对监听套接字进行事件监控
+    Channel _channel; // 用于对监听套接字进行事件管理
+
+    AcceptCallback _accept_callback;
 };
 
 // Channel类中的两个成员函数
