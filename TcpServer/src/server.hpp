@@ -18,6 +18,7 @@
 #include <sys/timerfd.h>
 #include <typeinfo>
 #include <signal.h>
+#include <condition_variable>
 
 // 日志宏
 #define INF 0
@@ -32,7 +33,7 @@
         struct tm *ltm = localtime(&t);                                                     \
         char tmp[32] = {0};                                                                 \
         strftime(tmp, 31, "%H:%M:%S", ltm);                                                 \
-        fprintf(stdout, "[%s %s:%d] " format "\n", tmp, __FILE__, __LINE__, ##__VA_ARGS__); \
+        fprintf(stdout, "[%p %s %s:%d] " format "\n", (void*)pthread_self(), tmp, __FILE__, __LINE__, ##__VA_ARGS__); \
     } while (0)
 
 #define INF_LOG(format, ...) LOG(INF, format, ##__VA_ARGS__)
@@ -989,6 +990,54 @@ private:
     std::vector<Functor> _tasks;               // 任务池
     std::mutex _mutex;                         // 保证任务池操作的线程安全
     TimerWheel _timer_wheel;                   // 定时器模块
+};
+
+class LoopThread
+{
+public:
+    // 创建线程，设定线程入口函数
+    LoopThread()
+        :_loop(NULL)
+        , _thread(&LoopThread::ThreadEntry, this)
+    {}
+
+    // 返回当前线程关联的EventLoop对象指针
+    EventLoop* GetLoop()
+    {
+        EventLoop* loop = NULL;
+
+        {
+            std::unique_lock<std::mutex> lock(_mutex); // 加锁
+            _cond.wait(lock, [&](){ return _loop != NULL; }); // _loop为空就一直阻塞等待
+
+            // 代码执行到这，说明_loop已经实例化出来了
+            loop = _loop;
+        }
+
+        return loop;
+    }
+
+private:
+    // 实例化EventLoop对象，并且开始执行EventLoop模块的功能
+    void ThreadEntry()
+    {
+        EventLoop loop; // 实例化一个EventLoop对象
+
+        {
+            std::unique_lock<std::mutex> lock(_mutex); // 加锁
+            _loop = &loop;
+
+            _cond.notify_all(); // 唤醒有可能阻塞的线程
+        }
+
+        _loop->Start();
+    }
+
+private:
+    std::mutex _mutex;             // 互斥锁
+    std::condition_variable _cond; // 条件变量
+    EventLoop* _loop;              // EventLoop指针变量，这个变量需要在线程内实例化
+    std::thread _thread;           // EventLoop对象对应的线程
 };
 
 // Any类

@@ -3,7 +3,9 @@
 // 管理所有的连接
 std::unordered_map<uint64_t, SharedConnection> _conns;
 uint64_t conn_id = 0;
-EventLoop loop;
+EventLoop base_loop;
+std::vector<LoopThread> threads(2);
+int next_loop = 0;
 
 void ConnectionDestroy(const SharedConnection& conn)
 {
@@ -28,8 +30,9 @@ void OnMessage(const SharedConnection& conn, Buffer* buf)
 void NewConnection(int fd)
 {
     ++conn_id;
+    next_loop = (next_loop + 1) % 2;
 
-    SharedConnection conn(new Connection(&loop, conn_id, fd));
+    SharedConnection conn(new Connection(threads[next_loop].GetLoop(), conn_id, fd));
     conn->SetConnectedCallback(std::bind(OnConnected, std::placeholders::_1));
     conn->SetMessageCallback(std::bind(OnMessage, std::placeholders::_1, std::placeholders::_2));
     conn->SetServerClosedCallback(std::bind(ConnectionDestroy, std::placeholders::_1));
@@ -38,17 +41,19 @@ void NewConnection(int fd)
     conn->Established(); // 就绪初始化
 
     _conns.insert(std::make_pair(conn_id, conn));
+
+    DBG_LOG("NEW--------------");
 }
 
 int main()
 {
-    Acceptor acceptor(&loop, 8080);
+    Acceptor acceptor(&base_loop, 8080);
     acceptor.SetAcceptCallback(std::bind(NewConnection, std::placeholders::_1));
     acceptor.Listen();
 
     while (true)
     {
-        loop.Start();
+        base_loop.Start();
     }
 
     return 0;
