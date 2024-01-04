@@ -992,6 +992,7 @@ private:
     TimerWheel _timer_wheel;                   // 定时器模块
 };
 
+// LoopThread类
 class LoopThread
 {
 public:
@@ -1038,6 +1039,49 @@ private:
     std::condition_variable _cond; // 条件变量
     EventLoop* _loop;              // EventLoop指针变量，这个变量需要在线程内实例化
     std::thread _thread;           // EventLoop对象对应的线程
+};
+
+// LoopThreadPool类
+class LoopThreadPool
+{
+public:
+    LoopThreadPool(EventLoop* base_loop)
+        :_thread_count(0)
+        , _next_loop_idx(0)
+        , _base_loop(base_loop)
+    {}
+
+    void SetThreadCount(int count) { _thread_count = count; }
+
+    void Create()
+    {
+        if (_thread_count > 0)
+        {
+            _threads.resize(_thread_count);
+            _loops.resize(_thread_count);
+
+            for (int i = 0; i < _thread_count; ++i)
+            {
+                _threads[i] = new LoopThread();
+                _loops[i] = _threads[i]->GetLoop();
+            }
+        }
+    }
+
+    EventLoop* NextLoop()
+    {
+        if (_thread_count == 0) return _base_loop;
+
+        _next_loop_idx = (_next_loop_idx + 1) % _thread_count;
+        return _loops[_next_loop_idx];
+    }
+
+private:
+    int _thread_count; // 从线程的数量
+    int _next_loop_idx;
+    EventLoop* _base_loop; // 主EventLoop，运行在主线程；若从线程数量为0，则所有操作都在_base_loop中进行
+    std::vector<LoopThread*> _threads; // 保存所有的LoopThread对象
+    std::vector<EventLoop*> _loops; // 从线程数量大于0，则从_loops中进行线程EventLoop分配
 };
 
 // Any类

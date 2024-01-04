@@ -4,8 +4,7 @@
 std::unordered_map<uint64_t, SharedConnection> _conns;
 uint64_t conn_id = 0;
 EventLoop base_loop;
-std::vector<LoopThread> threads(2);
-int next_loop = 0;
+LoopThreadPool* loop_pool;
 
 void ConnectionDestroy(const SharedConnection& conn)
 {
@@ -30,9 +29,8 @@ void OnMessage(const SharedConnection& conn, Buffer* buf)
 void NewConnection(int fd)
 {
     ++conn_id;
-    next_loop = (next_loop + 1) % 2;
 
-    SharedConnection conn(new Connection(threads[next_loop].GetLoop(), conn_id, fd));
+    SharedConnection conn(new Connection(loop_pool->NextLoop(), conn_id, fd));
     conn->SetConnectedCallback(std::bind(OnConnected, std::placeholders::_1));
     conn->SetMessageCallback(std::bind(OnMessage, std::placeholders::_1, std::placeholders::_2));
     conn->SetServerClosedCallback(std::bind(ConnectionDestroy, std::placeholders::_1));
@@ -47,14 +45,15 @@ void NewConnection(int fd)
 
 int main()
 {
+    loop_pool = new LoopThreadPool(&base_loop);
+    loop_pool->SetThreadCount(2);
+    loop_pool->Create();
+
     Acceptor acceptor(&base_loop, 8080);
     acceptor.SetAcceptCallback(std::bind(NewConnection, std::placeholders::_1));
     acceptor.Listen();
 
-    while (true)
-    {
-        base_loop.Start();
-    }
+    base_loop.Start();
 
     return 0;
 }
