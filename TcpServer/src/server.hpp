@@ -1079,9 +1079,9 @@ public:
 private:
     int _thread_count; // 从线程的数量
     int _next_loop_idx;
-    EventLoop* _base_loop; // 主EventLoop，运行在主线程；若从线程数量为0，则所有操作都在_base_loop中进行
+    EventLoop* _base_loop;             // 主EventLoop，运行在主线程；若从线程数量为0，则所有操作都在_base_loop中进行
     std::vector<LoopThread*> _threads; // 保存所有的LoopThread对象
-    std::vector<EventLoop*> _loops; // 从线程数量大于0，则从_loops中进行线程EventLoop分配
+    std::vector<EventLoop*> _loops;    // 从线程数量大于0，则从_loops中进行线程EventLoop分配
 };
 
 // Any类
@@ -1523,6 +1523,110 @@ private:
     AcceptCallback _accept_callback;
 };
 
+// TcpServer类
+class TcpServer
+{
+    using ConnectedCallback = std::function<void(const SharedConnection&)>;
+    using MessageCallback = std::function<void(const SharedConnection&, Buffer*)>;
+    using ClosedCallback = std::function<void(const SharedConnection&)>;
+    using AnyEventCallback = std::function<void(const SharedConnection&)>;
+
+    using Functor = std::function<void()>;
+public:
+    TcpServer(uint16_t port)
+        :_next_id(0)
+        , _port(port)
+        , _enable_inactive_release(false)
+        , _acceptor(&_base_loop, port)
+        , _pool(&_base_loop)
+    {
+        _acceptor.SetAcceptCallback(std::bind(&TcpServer::NewConnection, this, std::placeholders::_1));
+        _acceptor.Listen(); // 将监听套接字挂到_base_loop上
+    }
+
+    // 设置从线程个数
+    void SetThreadCount(int count) { return _pool.SetThreadCount(count); }
+
+    void SetConnectedCallback(const ConnectedCallback& cb) { _connected_callback = cb; }
+
+    void SetMessageCallback(const MessageCallback& cb) { _message_callback = cb; }
+
+    void SetClosedCallback(const ClosedCallback& cb) { _closed_callback = cb; }
+
+    void SetAnyEventCallback(const AnyEventCallback& cb) { _event_callback = cb; }
+
+    void EnableInactiveRelease(int timeout) { _timeout = timeout; _enable_inactive_release = true; }
+
+    void RunAfter(const Functor& task, int delay)
+    {
+        _base_loop.RunInLoop(std::bind(&TcpServer::RunAfterInLoop, this, task, delay));
+    }
+
+    void Start()
+    {
+        _pool.Create(); // 创建线程池中的从线程
+        _base_loop.Start();
+    }
+
+private:
+    // 为新连接构造一个Connection对象进行管理
+    void NewConnection(int fd)
+    {
+        ++_next_id;
+
+        SharedConnection conn(new Connection(_pool.NextLoop(), _next_id, fd));
+        conn->SetConnectedCallback(_connected_callback);
+        conn->SetMessageCallback(_message_callback);
+        conn->SetClosedCallback(_closed_callback);
+        conn->SetAnyEventCallback(_event_callback);
+        conn->SetServerClosedCallback(std::bind(&TcpServer::RemoveConnection, this, std::placeholders::_1));
+
+        if (_enable_inactive_release) conn->EnableInactiveRelease(_timeout); // 启动非活跃连接销毁
+        conn->Established(); // 就绪初始化
+
+        _conns.insert(std::make_pair(_next_id, conn));
+    }
+
+    // 从管理Connection的_conns中移除连接信息
+    void RemoveConnection(const SharedConnection& conn)
+    {
+        _base_loop.RunInLoop(std::bind(&TcpServer::RemoveConnectionInLoop, this, conn));
+    }
+
+    // 用于添加一个定时任务
+    void RunAfterInLoop(const Functor& task, uint32_t delay)
+    {
+        ++_next_id;
+        _base_loop.TimerAdd(_next_id, delay, task);
+    }
+
+    void RemoveConnectionInLoop(const SharedConnection& conn)
+    {
+        int id = conn->Id(); // 获取连接id
+
+        auto it = _conns.find(id);
+        if (it != _conns.end()) // 找到了
+        {
+            _conns.erase(it);
+        }
+    }
+
+private:
+    uint64_t _next_id;                                     // 自动增长的连接id，连接的唯一标识
+    uint16_t _port;                                        // 连接的端口号
+    int _timeout;                                          // 非活跃连接的统计时间----多长时间无通信就是非活跃
+    bool _enable_inactive_release;                         // 是否启动非活跃连接超时销毁的判断标志
+    EventLoop _base_loop;                                  // 主线程的EventLoop对象，负责监听套接字的事件的处理
+    Acceptor _acceptor;                                    // 监听套接字的管理对象
+    LoopThreadPool _pool;                                  // 从属EventLoop线程池
+    std::unordered_map<uint64_t, SharedConnection> _conns; // 保存管理所有连接对应的shared_ptr对象
+
+    ConnectedCallback _connected_callback;
+    MessageCallback _message_callback;
+    ClosedCallback _closed_callback;
+    AnyEventCallback _event_callback;
+};
+
 // Channel类中的两个成员函数
 void Channel::Update() { return _loop->UpdateEvent(this); }
 void Channel::Remove() { return _loop->RemoveEvent(this); }
@@ -1542,10 +1646,11 @@ void TimerWheel::TimerCancel(uint64_t id)
 }
 
 class NetWork {
-    public:
-        NetWork() {
-            DBG_LOG("SIGPIPE INIT");
-            signal(SIGPIPE, SIG_IGN);
-        }
+public:
+    NetWork() 
+    {
+        DBG_LOG("SIGPIPE INIT");
+        signal(SIGPIPE, SIG_IGN);
+    }
 };
 static NetWork nw;
