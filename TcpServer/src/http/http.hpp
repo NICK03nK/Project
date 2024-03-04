@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <regex>
 
-#define DEFAULT_TIMEOUT 30
+#define DEFAULT_TIMEOUT 10
 
 class Util
 {
@@ -644,7 +644,7 @@ private:
     {
         if (_recv_statu != RECV_HTTP_LINE) return false;
         
-        // 1.获取一行数据
+        // 1.获取一行数据（数据中包含末尾换行符）
         std::string line = buf->GetLineAndPop();
         
         // 2.需要考虑两个因素：缓冲区的数据不足一行/获取一行数据的大小很大
@@ -786,8 +786,11 @@ private:
         return true;
     }
 
-    bool ParseHttpHead(const std::string& line)
+    bool ParseHttpHead(std::string& line)
     {
+        if (line.back() == '\n') line.pop_back(); // 末尾是换行则去掉换行字符
+        if (line.back() == '\r') line.pop_back(); // 末尾是回车则去掉回车字符
+
         // 头部字段的格式：key: val\r\n
         size_t pos = line.find(": ");
         if (pos == std::string::npos)
@@ -1050,7 +1053,7 @@ private:
     void OnConnected(const SharedConnection& conn)
     {
         conn->SetContext(HttpContext());
-        DBG_LOG("new connection %p", conn->GetContext()); // ???????????????
+        DBG_LOG("new connection %p", conn.get());
     }
 
     void ErrorHandler(HttpResponse* resp)
