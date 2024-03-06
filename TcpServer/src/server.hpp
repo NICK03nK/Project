@@ -26,7 +26,7 @@
 #define INF 0
 #define DBG 1
 #define ERR 2
-#define LOG_LEVEL INF
+#define LOG_LEVEL DBG
 #define LOG(level, format, ...)                                                             \
     do                                                                                      \
     {                                                                                       \
@@ -517,31 +517,25 @@ public:
         if ((_revents & EPOLLIN) || (_revents & EPOLLRDHUP) || (_revents & EPOLLPRI))
         {
             // 文件描述符触发任意事件都要调用任意事件回调函数
-            if (_event_Callback) _event_Callback();
-
             if (_read_Callback) _read_Callback();
         }
 
         // 可能会释放连接的操作事件，一次只处理一个
         if (_revents & EPOLLOUT)
         {
-            // 文件描述符触发任意事件都要调用任意事件回调函数
-            if (_event_Callback) _event_Callback();
-            
+            // 文件描述符触发任意事件都要调用任意事件回调函数            
             if (_write_Callback) _write_Callback();
         }
         else if (_revents & EPOLLHUP)
         {
-            if (_event_Callback) _event_Callback();
-
             if (_close_Callback) _close_Callback();
         }
         else if (_revents & EPOLLERR)
         {
-            if (_event_Callback) _event_Callback();
-            
             if (_error_Callback) _error_Callback();
         }
+
+        if (_event_Callback) _event_Callback();
     }
 
 private:
@@ -768,15 +762,17 @@ private:
         return timerfd;
     }
 
-    void ReadTimerFd()
+    int ReadTimerFd()
     {
         uint64_t times;
-        int ret = read(_timerfd, &times, 8);
+        int ret = read(_timerfd, &times, 8); // read读取到的数据times就是从上一次read之后超时的次数
         if (ret < 0)
         {
             ERR_LOG("read timerfd failed");
             abort();
         }
+
+        return times;
     }
 
     // 时间轮定时任务执行函数(该函数每秒执行一次)
@@ -788,8 +784,12 @@ private:
 
     void OnTime()
     {
-        ReadTimerFd();
-        RunTimerTask();
+        // 根据实际的超时次数来执行对应的超时任务
+        int times = ReadTimerFd();
+        for (int i = 0; i < times; ++i)
+        {
+            RunTimerTask();
+        }
     }
 
     // 添加定时任务
