@@ -1,4 +1,4 @@
-all: server client1
+all: server client2
 # server:tcp_svr.cc
 # 	g++ -o $@ $^ -std=c++11 -lpthread
 
@@ -11,6 +11,9 @@ client:tcp_cli.cc
 client1:client1.cc
 	g++ -g -o $@ $^ -std=c++11 -lpthread
 
+client2:client2.cc
+	g++ -g -o $@ $^ -std=c++11 -lpthread
+
 .PHONY:clean
 clean:
-	rm -f server client
+	rm -f server client2
