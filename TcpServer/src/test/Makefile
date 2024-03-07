@@ -1,4 +1,4 @@
-all: server client4
+all: client6
 # server:tcp_svr.cc
 # 	g++ -o $@ $^ -std=c++11 -lpthread
 
@@ -20,6 +20,12 @@ client3:client3.cc
 client4:client4.cc
 	g++ -g -o $@ $^ -std=c++11 -lpthread
 
+client5:client5.cc
+	g++ -g -o $@ $^ -std=c++11 -lpthread
+
+client6:client6.cc
+	g++ -g -o $@ $^ -std=c++11 -lpthread
+
 .PHONY:clean
 clean:
-	rm -f server client4
+	rm -f client6
