@@ -5,10 +5,52 @@
 
 typedef websocketpp::server<websocketpp::config::asio> websocketsvr_t;
 
-void wsopen_callback(websocketpp::connection_hdl hdl);
-void wsclose_callback(websocketpp::connection_hdl hdl);
-void wsmsg_callback(websocketpp::connection_hdl hdl, websocketsvr_t::message_ptr msg);
-void http_callback(websocketpp::connection_hdl hdl);
+void wsopen_callback(websocketsvr_t* wssvr, websocketpp::connection_hdl hdl)
+{
+    std::cout << "websocket建立连接" << std::endl;
+}
+
+void wsclose_callback(websocketsvr_t* wssvr, websocketpp::connection_hdl hdl)
+{
+    std::cout << "websocket连接断开" << std::endl;
+}
+
+void wsmsg_callback(websocketsvr_t* wssvr, websocketpp::connection_hdl hdl, websocketsvr_t::message_ptr msg)
+{
+    // 获取通信连接
+    websocketsvr_t::connection_ptr conn = wssvr->get_con_from_hdl(hdl);
+
+    std::cout << "msg: " << msg->get_payload() << std::endl;
+    
+    // 将客户端发送的信息作为响应
+    std::string resp = "client say: " + msg->get_payload();
+
+    // 将响应信息发送给客户端
+    conn->send(resp);
+}
+
+// 给客户端返回一个hello world页面
+void http_callback(websocketsvr_t* wssvr, websocketpp::connection_hdl hdl)
+{
+    // 获取通信连接
+    websocketsvr_t::connection_ptr conn = wssvr->get_con_from_hdl(hdl);
+
+    // 打印请求正文
+    std::cout << "body: " << conn->get_request_body() << std::endl;
+
+    // 获取http请求
+    websocketpp::http::parser::request req = conn->get_request();
+
+    // 打印请求方法和url
+    std::cout << "method: " << req.get_method() << std::endl;
+    std::cout << "uri: " << req.get_uri() << std::endl;
+
+    // 设置响应正文
+    std::string body = "<html><body><h1>Hello World</h1></body></html>";
+    conn->set_body(body);
+    conn->append_header("Content-Type", "text/html");
+    conn->set_status(websocketpp::http::status_code::ok);
+}
 
 int main()
 {
@@ -28,10 +70,10 @@ int main()
     wssvr.init_asio();
     wssvr.set_reuse_addr(true);
     // 4.
-    wssvr.set_open_handler(wsopen_callback);
-    wssvr.set_close_handler(wsclose_callback);
-    wssvr.set_message_handler(wsmsg_callback);
-    wssvr.set_http_handler(http_callback);
+    wssvr.set_open_handler(std::bind(wsopen_callback, &wssvr, std::placeholders::_1));
+    wssvr.set_close_handler(std::bind(wsclose_callback, &wssvr, std::placeholders::_1));
+    wssvr.set_message_handler(std::bind(wsmsg_callback, &wssvr, std::placeholders::_1, std::placeholders::_2));
+    wssvr.set_http_handler(std::bind(http_callback, &wssvr, std::placeholders::_1));
     // 5.
     wssvr.listen(8080);
     // 6.
