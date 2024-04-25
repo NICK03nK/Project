@@ -58,6 +58,8 @@ int main()
     std::cout << "序列化结果：\n" << str << std::endl;
 
     Json::Value studentTmp = unserialize(str);
+
+    // 输出Json格式的数据
     std::cout << "反序列化结果：" << std::endl;
     std::cout << "name: " << studentTmp["name"].asString() << std::endl;
     std::cout << "age: " << studentTmp["age"].asInt() << std::endl;
