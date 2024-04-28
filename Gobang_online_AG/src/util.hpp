@@ -3,6 +3,9 @@
 #include <iostream>
 #include <string>
 #include <mysql/mysql.h>
+#include <jsoncpp/json/json.h>
+#include <sstream>
+#include <memory>
 
 #include "logger.hpp"
 
@@ -53,5 +56,50 @@ public:
     static void mysql_destroy(MYSQL* mysql)
     {
         if (mysql != nullptr) mysql_close(mysql);
+    }
+};
+
+class json_util
+{
+public:
+    static bool serialize(const Json::Value& root, std::string& str)
+    {
+        // 1. 实例化一个StreamWriterBuilder工厂类对象
+        Json::StreamWriterBuilder swb;
+
+        // 2. 通过StreamWriterBuilder工厂类对象实例化一个StreamWriter对象
+        std::unique_ptr<Json::StreamWriter> sw(swb.newStreamWriter());
+
+        // 3. 使用StreamWriter对象，对Json::Value对象中存储的数据进行序列化
+        std::stringstream ss;
+        int ret = sw->write(root, &ss);
+        if (ret != 0)
+        {
+            ELOG("serialize failed!");
+            return false;
+        }
+
+        str = ss.str();
+        return true;
+    }
+
+    static bool unserialize(const std::string& str, Json::Value& root)
+    {
+        // 1. 实例化一个CharReaderBuilder工厂类对象
+        Json::CharReaderBuilder crb;
+
+        // 2. 通过CharReaderBuilder工厂类对象实例化一个CharReader对象
+        std::unique_ptr<Json::CharReader> cr(crb.newCharReader());
+
+        // 3. 使用CharReader对象，对str字符串进行Json格式的反序列化
+        std::string err;
+        bool ret = cr->parse(str.c_str(), str.c_str() + str.size(), &root, &err);
+        if (ret == false)
+        {
+            ELOG("unserialize failed! %s", err.c_str());
+            return false;
+        }
+
+        return true;
     }
 };
