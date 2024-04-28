@@ -20,6 +20,6 @@
         fprintf(stdout, "[%s %s:%d] " format "\n", buf, __FILE__, __LINE__, ##__VA_ARGS__); \
     } while (false)
 
-#define ILOG(format, ...) LOG(INF, format, ##__VAR_ARGS__)
-#define DLOG(format, ...) LOG(DBG, format, ##__VAR_ARGS__)
-#define ELOG(format, ...) LOG(ERR, format, ##__VAR_ARGS__)
+#define ILOG(format, ...) LOG(INF, format, ##__VA_ARGS__)
+#define DLOG(format, ...) LOG(DBG, format, ##__VA_ARGS__)
+#define ELOG(format, ...) LOG(ERR, format, ##__VA_ARGS__)
