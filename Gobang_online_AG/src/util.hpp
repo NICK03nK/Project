@@ -6,6 +6,7 @@
 #include <jsoncpp/json/json.h>
 #include <sstream>
 #include <memory>
+#include <vector>
 
 #include "logger.hpp"
 
@@ -101,5 +102,34 @@ public:
         }
 
         return true;
+    }
+};
+
+class string_util
+{
+public:
+    static int split(const std::string& src, const std::string& sep, std::vector<std::string>& res)
+    {
+        size_t start = 0, pos = 0;
+        while (start < src.size())
+        {
+            pos = src.find(sep, start);
+            if (pos == std::string::npos)
+            {
+                res.push_back(src.substr(start));
+                break;
+            }
+
+            if (pos == start)
+            {
+                start += sep.size();
+                continue;
+            }
+
+            res.push_back(src.substr(start, pos - start));
+            start = pos + sep.size();
+        }
+
+        return res.size();
     }
 };
