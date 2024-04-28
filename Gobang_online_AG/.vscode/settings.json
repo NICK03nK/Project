@@ -62,5 +62,6 @@
         "cinttypes": "cpp",
         "typeindex": "cpp",
         "typeinfo": "cpp"
-    }
+    },
+    "editor.fontSize": 22
 }
