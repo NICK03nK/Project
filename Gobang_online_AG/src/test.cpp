@@ -27,9 +27,22 @@ void json_test()
     }
 }
 
+void string_test()
+{
+    std::string src = "123+222+++11+";
+    std::vector<std::string> res;
+    string_util::split(src, "+", res);
+
+    for (const auto& e : res)
+    {
+        DLOG("%s", e.c_str());
+    }
+}
+
 int main()
 {
-    json_test();
+    // json_test();
+    string_test();
     
     return 0;
 }
