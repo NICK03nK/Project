@@ -7,6 +7,7 @@
 #include <sstream>
 #include <memory>
 #include <vector>
+#include <fstream>
 
 #include "logger.hpp"
 
@@ -131,5 +132,42 @@ public:
         }
 
         return res.size();
+    }
+};
+
+class file_util
+{
+public:
+    static bool read(const std::string& filename, std::string& body)
+    {
+        // 1. 打开文件
+        std::ifstream ifs(filename, std::ios::binary);
+        if (ifs.is_open() == false)
+        {
+            ELOG("open %s failed!", filename.c_str());
+            return false;
+        }
+
+        // 2. 获取文件大小
+        size_t fsize = 0;
+        ifs.seekg(0, std::ios::end); // 将文件指针移动到文件末尾处
+        fsize = ifs.tellg(); // 返回当前文件指针相较于文件开头的偏移量（即当前文件指针的位置相对于文件开头的字节数）
+        ifs.seekg(0, std::ios::beg); // 将文件指针恢复到文件开头处
+
+        body.resize(fsize); // ！将body扩容至文件中数据的大小，否则后续的read()，无法将文件数据存放进body中
+
+        // 3. 读取文件中所有数据
+        ifs.read(&body[0], fsize);
+        if (ifs.good() == false)
+        {
+            ELOG("read %s content failed!", filename.c_str());
+            ifs.close();
+            return false;
+        }
+
+        // 4. 关闭文件
+        ifs.close();
+
+        return true;
     }
 };
