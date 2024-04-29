@@ -39,10 +39,20 @@ void string_test()
     }
 }
 
+void file_test()
+{
+    std::string filename = "./Makefile";
+    std::string body;
+    file_util::read(filename, body);
+
+    std::cout << body << std::endl;
+}
+
 int main()
 {
     // json_test();
-    string_test();
+    // string_test();
+    file_test();
     
     return 0;
 }
