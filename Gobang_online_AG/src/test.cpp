@@ -1,5 +1,6 @@
 #include "util.hpp"
 #include "db.hpp"
+#include "online.hpp"
 
 void json_test()
 {
@@ -101,12 +102,36 @@ void db_test()
     utb.defeat(1);
 }
 
+void online_test()
+{
+    online_manager om;
+
+    websocketsvr_t::connection_ptr conn1;
+    uint64_t id1 = 20;
+    om.enter_game_hall(id1, conn1);
+    if (om.is_in_game_hall(id1)) DLOG("in game hall");
+    else DLOG("not in game hall");
+    om.exit_game_hall(id1);
+    if (om.is_in_game_hall(id1)) DLOG("in game hall");
+    else DLOG("not in game hall");
+
+    websocketsvr_t::connection_ptr conn2;
+    uint64_t id2 = 22;
+    om.enter_game_room(id2, conn2);
+    if (om.is_in_game_room(id2)) DLOG("in game room");
+    else DLOG("not in game room");
+    om.exit_game_room(id2);
+    if (om.is_in_game_room(id2)) DLOG("in game room");
+    else DLOG("not in game room");
+}
+
 int main()
 {
     // json_test();
     // string_test();
     // file_test();
-    db_test();
+    // db_test();
+    online_test();
     
     return 0;
 }
