@@ -50,7 +50,6 @@ public:
         {
             ELOG("%s", sql.c_str());
             ELOG("mysql query failed! %s", mysql_error(mysql));
-            mysql_close(mysql); // 退出前断开连接，释放mysql操作句柄
             return false;
         }
 
