@@ -53,6 +53,8 @@ public:
             mysql_close(mysql); // 退出前断开连接，释放mysql操作句柄
             return false;
         }
+
+        return true;
     }
 
     static void mysql_destroy(MYSQL* mysql)
