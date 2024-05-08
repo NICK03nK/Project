@@ -1,6 +1,7 @@
 #include "util.hpp"
 #include "db.hpp"
 #include "online.hpp"
+#include "room.hpp"
 
 void json_test()
 {
@@ -125,13 +126,22 @@ void online_test()
     else DLOG("not in game room");
 }
 
+void room_test()
+{
+    user_table utb("127.0.0.1", "root", "", "online_gobang", 3306);
+    online_manager om;
+
+    room r(20, &utb, &om);
+}
+
 int main()
 {
     // json_test();
     // string_test();
     // file_test();
     // db_test();
-    online_test();
+    // online_test();
+    room_test();
     
     return 0;
 }
