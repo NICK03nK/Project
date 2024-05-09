@@ -29,6 +29,8 @@ void wsmsg_callback(websocketsvr_t* wssvr, websocketpp::connection_hdl hdl, webs
     conn->send(resp);
 }
 
+void func(const std::string& str) { std::cout << str << std::endl; }
+
 // 给客户端返回一个hello world页面
 void http_callback(websocketsvr_t* wssvr, websocketpp::connection_hdl hdl)
 {
@@ -50,6 +52,8 @@ void http_callback(websocketsvr_t* wssvr, websocketpp::connection_hdl hdl)
     conn->set_body(body);
     conn->append_header("Content-Type", "text/html");
     conn->set_status(websocketpp::http::status_code::ok);
+
+    wssvr->set_timer(5000, std::bind(func, "hello nK!"));
 }
 
 int main()
