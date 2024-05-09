@@ -132,6 +132,19 @@ void room_test()
     online_manager om;
 
     room r(20, &utb, &om);
+
+    Json::Value req;
+    req["optype"] = "chat";
+    req["room_id"] = 222;
+    req["uid"] = 1;
+    req["message"] = "我不是基佬！";
+
+    Json::Value resp = r.handle_chat(req);
+    std::string resp_str;
+    json_util::serialize(resp, resp_str);
+    std::cout << resp_str << std::endl;
+
+    // room_manager rm(&utb, &om);
 }
 
 int main()
