@@ -404,15 +404,22 @@ public:
     {
         std::unique_lock<std::mutex> lock(_mtx); // 对下面的操作进行加锁保护
 
-        auto it = _user_id_and_room_id.find(user_id);
-        if (it == _user_id_and_room_id.end())
+        auto it1 = _user_id_and_room_id.find(user_id);
+        if (it1 == _user_id_and_room_id.end())
         {
             DLOG("不存在与id为：%d 的玩家匹配的房间");
             return room_ptr();
         }
 
-        uint64_t room_id = it->second;
-        return get_room_by_room_id(room_id);
+        uint64_t room_id = it1->second;
+        auto it2 = _room_id_and_room.find(room_id);
+        if (it2 == _room_id_and_room.end())
+        {
+            DLOG("不存在房间id为：%d 的房间", room_id);
+            return room_ptr();
+        }
+
+        return it2->second;
     }
 
     void remove_player_in_room(uint64_t user_id)
