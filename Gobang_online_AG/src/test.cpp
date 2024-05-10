@@ -2,6 +2,7 @@
 #include "db.hpp"
 #include "online.hpp"
 #include "room.hpp"
+#include "session.hpp"
 
 void json_test()
 {
@@ -147,6 +148,11 @@ void room_test()
     // room_manager rm(&utb, &om);
 }
 
+void session_test()
+{
+    session ss1(1221);
+}
+
 int main()
 {
     // json_test();
@@ -154,7 +160,8 @@ int main()
     // file_test();
     // db_test();
     // online_test();
-    room_test();
+    // room_test();
+    session_test();
     
     return 0;
 }
