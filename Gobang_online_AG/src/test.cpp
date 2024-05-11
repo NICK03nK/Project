@@ -151,6 +151,9 @@ void room_test()
 void session_test()
 {
     session ss1(1221);
+
+    websocketsvr_t wssvr;
+    session_manager ssm(&wssvr);
 }
 
 int main()
