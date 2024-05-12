@@ -3,6 +3,7 @@
 #include "online.hpp"
 #include "room.hpp"
 #include "session.hpp"
+#include "matcher.hpp"
 
 void json_test()
 {
@@ -156,6 +157,15 @@ void session_test()
     session_manager ssm(&wssvr);
 }
 
+void match_test()
+{
+    user_table utb("127.0.0.1", "root", "", "online_gobang", 3306);
+    online_manager om;
+    room_manager rm(&utb, &om);
+
+    match_manager mm(&rm, &utb, &om);
+}
+
 int main()
 {
     // json_test();
@@ -164,7 +174,8 @@ int main()
     // db_test();
     // online_test();
     // room_test();
-    session_test();
+    // session_test();
+    match_test();
     
     return 0;
 }
