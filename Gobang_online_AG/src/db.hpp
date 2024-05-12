@@ -168,7 +168,7 @@ public:
         // 将用户的详细信息保存到形参user中
         user["id"] = (Json::UInt64)id;
         user["username"] = line[0];
-        user["score"] = (Json::UInt64)std::stol(line[1]);
+        user["score"] = std::stoi(line[1]);
         user["total_count"] = std::stoi(line[2]);
         user["win_count"] = std::stoi(line[3]);
 
