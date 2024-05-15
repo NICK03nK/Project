@@ -1,9 +1,4 @@
-#include "util.hpp"
-#include "db.hpp"
-#include "online.hpp"
-#include "room.hpp"
-#include "session.hpp"
-#include "matcher.hpp"
+#include "server.hpp"
 
 void json_test()
 {
@@ -175,7 +170,10 @@ int main()
     // online_test();
     // room_test();
     // session_test();
-    match_test();
+    // match_test();
+
+    gobang_server server("127.0.0.1", "root", "", "online_gobang", 3306);
+    server.start(8080);
     
     return 0;
 }
