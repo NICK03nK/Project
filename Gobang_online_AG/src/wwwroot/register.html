@@ -29,7 +29,7 @@
             </div>
             <!-- 提交按钮 -->
             <div class="row">
-                <button id="submit" onclick="signup()">提交</button>
+                <button id="submit" onclick="signup_handler()">提交</button>
             </div>
         </div>
     </div> 
@@ -38,7 +38,7 @@
     <script>
         // 1.给按钮添加点击事件，调用用户注册函数
         // 2.封装注册函数
-        function signup()
+        function signup_handler()
         {
             // 1.获取两个输入框中的数据，组织成为一个json格式的字符串
             var signup_info = {
@@ -48,7 +48,7 @@
 
             // 2.通过ajax向后台发送用户注册请求
             $.ajax({
-                url : "/reg",
+                url : "/signup",
                 type : "post",
                 data : JSON.stringify(signup_info),
                 success : function(res)
