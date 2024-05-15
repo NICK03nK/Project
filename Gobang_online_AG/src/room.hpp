@@ -376,8 +376,6 @@ public:
         proom->add_white_player(white_id);
         proom->add_black_player(black_id);
 
-        //-----------------------存疑？这里要不要调用_user_online->enter_game_room()？-----------------------
-
         // 3. 将房间信息管理起来
         _room_id_and_room.insert({proom->id(), proom});
         _user_id_and_room_id.insert({user_id1, proom->id()});
