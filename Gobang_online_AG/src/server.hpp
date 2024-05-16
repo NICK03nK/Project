@@ -3,6 +3,7 @@
 #include <string>
 #include <websocketpp/server.hpp>
 #include <websocketpp/config/asio_no_tls.hpp>
+#include <vector>
 
 #include "db.hpp"
 #include "online.hpp"
@@ -214,8 +215,74 @@ private:
         return http_resp(conn, true, "用户登录成功", websocketpp::http::status_code::value::ok);
     }
 
+    // 通过HTTP请求头部字段中的Cookie信息获取session id
+    bool get_cookie_value(const std::string& cookie, const std::string& key, std::string& value)
+    {
+        // Cookie: SSID=xxx; key=value; key=value; 
+        // 1. 以‘; ’作为间隔，对字符串进行分割，得到各个单个的Cookie信息
+        std::vector<std::string> cookie_arr;
+        string_util::split(cookie, "; ", cookie_arr);
+
+        // 2. 对单个的cookie字符串以‘=’为间隔进行分割，得到key和val
+        for (const auto& str : cookie_arr)
+        {
+            std::vector<std::string> tmp_arr;
+            string_util::split(str, "=", tmp_arr);
+            if (tmp_arr.size() != 2) continue;
+            
+            if (tmp_arr[0] == key)
+            {
+                value = tmp_arr[1];
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
     // 获取用户信息请求的处理
-    void info_handler(websocketsvr_t::connection_ptr& conn){}
+    void info_handler(websocketsvr_t::connection_ptr& conn)
+    {
+        // 1. 获取HTTP请求中的Cookie字段
+        std::string cookie_str = conn->get_request_header("Cookie");
+        if (cookie_str.empty())
+        {
+            return http_resp(conn, false, "没有Cookie信息", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 从Cookie中获取session id
+        std::string session_id_str;
+        bool ret = get_cookie_value(cookie_str, "SSID", session_id_str);
+        if (ret == false)
+        {
+            return http_resp(conn, false, "Cookie中没有session id", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 2. 根据session id在session管理中获取对应的session
+        session_ptr psession = _session_manager.get_session_by_session_id(std::stoul(session_id_str));
+        if (psession.get() == nullptr)
+        {
+            return http_resp(conn, false, "session已过期", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 3. 通过session获取对应的user id，再从数据库中获取用户信息，并序列化返回给客户端
+        uint64_t user_id = psession->get_user_id();
+        Json::Value user_info;
+        ret = _user_table.select_by_id(user_id, user_info);
+        if (ret == false)
+        {
+            return http_resp(conn, false, "获取用户信息失败", websocketpp::http::status_code::value::bad_request);
+        }
+
+        std::string user_info_str;
+        json_util::serialize(user_info, user_info_str);
+        conn->set_status(websocketpp::http::status_code::value::ok);
+        conn->set_body(user_info_str);
+        conn->append_header("Content-Type", "application/json");
+
+        // 4. 上述操作访问了session，所以要刷新session的过期时间
+        _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_TEMOPRARY);
+    }
 
 private:
     std::string _web_root;            // 静态资源根目录（./wwwroot/） 请求的url为 /register.html，会自动将url拼接到_web_root后，即./wwwroot/register.html
