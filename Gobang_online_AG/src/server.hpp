@@ -147,11 +147,11 @@ private:
         bool ret = json_util::unserialize(req_body, signup_info);
         if (ret == false)
         {
-            DLOG("序列化注册信息失败");
+            DLOG("反序列化注册信息失败");
             return http_resp(conn, false, "用户注册失败", websocketpp::http::status_code::value::bad_request);
         }
 
-        // 3. 进行数据库的用户新增操作(成功返回200，失败返回400)
+        // 3. 进行数据库的用户新增操作（成功返回200，失败返回400）
         if (signup_info["username"].isNull() || signup_info["password"].isNull())
         {
             DLOG("缺少用户名或密码");
@@ -165,11 +165,54 @@ private:
             return http_resp(conn, false, "用户注册失败", websocketpp::http::status_code::value::bad_request);
         }
 
+        // 用户注册成功，返回成功响应
         return http_resp(conn, true, "用户注册成功", websocketpp::http::status_code::value::ok);
     }
 
     // 用户登录请求的处理
-    void login_handler(websocketsvr_t::connection_ptr& conn){}
+    void login_handler(websocketsvr_t::connection_ptr& conn)
+    {
+        // 1. 获取HTTP请求正文
+        std::string req_body = conn->get_request_body();
+
+        // 2. 对HTTP请求正文进行反序列化得到用户名和密码
+        Json::Value login_info;
+        bool ret = json_util::unserialize(req_body, login_info);
+        if (ret == false)
+        {
+            DLOG("反序列化登录信息失败");
+            return http_resp(conn, false, "用户登录失败", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 3. 校验正文完整性，进行数据库的用户信息验证（失败返回400）
+        if (login_info["username"].isNull() || login_info["password"].isNull())
+        {
+            DLOG("缺少用户名或密码");
+            return http_resp(conn, false, "缺少用户名或密码", websocketpp::http::status_code::value::bad_request);
+        }
+
+        ret = _user_table.login(login_info); // 进行登录验证
+        if (ret == false)
+        {
+            DLOG("用户登录失败");
+            return http_resp(conn, false, "用户登录失败", websocketpp::http::status_code::value::bad_request);
+        }
+
+        // 4. 用户信息验证成功，则给客户端创建session
+        uint64_t user_id = login_info["id"].asUInt64();
+        session_ptr psession = _session_manager.create_session(user_id, LOGIN);
+        if (psession.get() == nullptr)
+        {
+            DLOG("创建session失败");
+            return http_resp(conn, false, "创建session失败", websocketpp::http::status_code::value::internal_server_error);
+        }
+        _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_TEMOPRARY);
+
+        // 5. 设置响应头部，Set-Cookie，将session id通过cookie返回
+        std::string cookie_ssid = "SSID=" + std::to_string(psession->get_session_id());
+        conn->append_header("Set-Cookie", cookie_ssid);
+        return http_resp(conn, true, "用户登录成功", websocketpp::http::status_code::value::ok);
+    }
 
     // 获取用户信息请求的处理
     void info_handler(websocketsvr_t::connection_ptr& conn){}
