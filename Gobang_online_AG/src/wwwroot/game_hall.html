@@ -25,8 +25,8 @@
 
     <script src="./js/jquery.min.js"></script>
     <script>
-        // var websocket_url = "ws://" + location.host + "/hall";
-        // var websocket_hdl = null;
+        var websocket_url = "ws://" + location.host + "/hall";
+        var websocket_hdl = null;
 
         // window.onbeforeunload = function() { websocket_hdl.close(); }
 
@@ -79,61 +79,62 @@
             })
         }
 
-        // function ws_onopen()
-        // {
-        //     console.log("websocket onopen");
-        // }
+        function ws_onopen()
+        {
+            console.log("websocket onopen");
+        }
 
-        // function ws_onclose()
-        // {
-        //     console.log("websocket onclose");
-        // }
+        function ws_onclose()
+        {
+            console.log("websocket onclose");
+        }
 
-        // function ws_onerror()
-        // {
-        //     console.log("websocket onerror");
-        // }
+        function ws_onerror()
+        {
+            console.log("websocket onerror");
+        }
 
-        // function ws_onmessage(event)
-        // {
-        //     var rsp_json = JSON.parse(event.data);
-        //     if (rsp_json.result == false)
-        //     {
-        //         alert(event.data);
-        //         location.replace("/login.html");
-        //         return;
-        //     }
+        function ws_onmessage(event)
+        {
+            alert(event.data);
+            // var rsp_json = JSON.parse(event.data);
+            // if (rsp_json.result == false)
+            // {
+            //     alert(event.data);
+            //     location.replace("/login.html");
+            //     return;
+            // }
 
-        //     if (rsp_json["optype"] == "hall_ready")
-        //     {
-        //         alert("game hall connection established successfully");
-        //     }
-        //     else if (rsp_json["optype"] == "match_success")
-        //     {
-        //         alert("match successfully, enter the game room");
-        //         location.replace("/game_room.html");
-        //     }
-        //     else if (rsp_json["optype"] == "match_start")
-        //     {
-        //         console.log("player has been added to the matching queue");
-        //         button_flag = "start";
-        //         be.innerHTML = "匹配中...(点击按钮停止匹配)";
-        //         return;
-        //     }
-        //     else if (rsp_json["optype"] == "match_stop")
-        //     {
-        //         console.log("player has been removed from the matching queue");
-        //         button_flag = "stop";
-        //         be.innerHTML = "开始匹配";
-        //         return;
-        //     }
-        //     else
-        //     {
-        //         alert(event.data);
-        //         location.replace("/login.html");
-        //         return;
-        //     }
-        // }
+            // if (rsp_json["optype"] == "hall_ready")
+            // {
+            //     alert("game hall connection established successfully");
+            // }
+            // else if (rsp_json["optype"] == "match_success")
+            // {
+            //     alert("match successfully, enter the game room");
+            //     location.replace("/game_room.html");
+            // }
+            // else if (rsp_json["optype"] == "match_start")
+            // {
+            //     console.log("player has been added to the matching queue");
+            //     button_flag = "start";
+            //     be.innerHTML = "匹配中...(点击按钮停止匹配)";
+            //     return;
+            // }
+            // else if (rsp_json["optype"] == "match_stop")
+            // {
+            //     console.log("player has been removed from the matching queue");
+            //     button_flag = "stop";
+            //     be.innerHTML = "开始匹配";
+            //     return;
+            // }
+            // else
+            // {
+            //     alert(event.data);
+            //     location.replace("/login.html");
+            //     return;
+            // }
+        }
 
         get_user_info();
     </script>
