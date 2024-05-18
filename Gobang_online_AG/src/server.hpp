@@ -64,7 +64,21 @@ private:
         }
     }
 
-    void wsclose_callback(websocketpp::connection_hdl hdl){}
+    // WebSocket长连接断开前的处理函数
+    void wsclose_callback(websocketpp::connection_hdl hdl)
+    {
+        websocketsvr_t::connection_ptr conn = _wssvr.get_con_from_hdl(hdl);
+        websocketpp::http::parser::request req = conn->get_request();
+        std::string uri = req.get_uri();
+        if (uri == "/hall") // 游戏大厅长连接断开
+        {
+            wscloes_game_hall(conn);
+        }
+        else if (uri == "/room") // 游戏房间长连接断开
+        {
+
+        }
+    }
 
     void wsmsg_callback(websocketpp::connection_hdl hdl, websocketsvr_t::message_ptr msg){}
 
@@ -377,6 +391,22 @@ private:
 
         // 5. 将session的生命周期设置为永久
         _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_PERMANENT);
+    }
+
+    // 游戏大厅长连接断开的处理函数
+    void wscloes_game_hall(websocketsvr_t::connection_ptr conn)
+    {
+        Json::Value resp;
+
+        // 1. 登录验证（判断当前用户是否登录成功）
+        session_ptr psession = get_session_by_cookie(conn);
+        if (psession.get() == nullptr) return;
+
+        // 2. 将用户从游戏大厅中移除
+        _user_online.exit_game_hall(psession->get_user_id());
+
+        // 3. 将session的生命周期设为定时的，超时自动删除
+        _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_TEMOPRARY);
     }
 
 private:
