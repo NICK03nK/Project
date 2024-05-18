@@ -28,7 +28,7 @@
         var websocket_url = "ws://" + location.host + "/hall";
         var websocket_hdl = null;
 
-        // window.onbeforeunload = function() { websocket_hdl.close(); }
+        window.onbeforeunload = function() { websocket_hdl.close(); }
 
         // // 按钮有两个状态：未匹配；匹配中
         // var button_flag = "stop";
