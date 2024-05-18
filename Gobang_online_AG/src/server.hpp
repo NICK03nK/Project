@@ -48,7 +48,21 @@ public:
     }
 
 private:
-    void wsopen_callback(websocketpp::connection_hdl hdl){}
+    // WebSocket长连接建立成功后的处理函数
+    void wsopen_callback(websocketpp::connection_hdl hdl)
+    {
+        websocketsvr_t::connection_ptr conn = _wssvr.get_con_from_hdl(hdl);
+        websocketpp::http::parser::request req = conn->get_request();
+        std::string uri = req.get_uri();
+        if (uri == "/hall") // 建立了游戏大厅的长连接
+        {
+            wsopen_game_hall(conn);
+        }
+        else if (uri == "/room") // 建立了游戏房间的长连接
+        {
+
+        }
+    }
 
     void wsclose_callback(websocketpp::connection_hdl hdl){}
 
@@ -93,6 +107,14 @@ private:
         conn->set_status(code);
         conn->set_body(resp_str);
         conn->append_header("Content-Type", "application/json");
+    }
+
+    // 组织WebSocket响应
+    void websocket_resp(websocketsvr_t::connection_ptr& conn, Json::Value& resp)
+    {
+        std::string resp_str;
+        json_util::serialize(resp, resp_str);
+        conn->send(resp_str);
     }
 
     // 静态资源请求的处理
@@ -282,6 +304,79 @@ private:
 
         // 4. 上述操作访问了session，所以要刷新session的过期时间
         _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_TEMOPRARY);
+    }
+
+    // 用于验证用户是否登录成功，登录成功则返回用户session
+    session_ptr get_session_by_cookie(websocketsvr_t::connection_ptr conn)
+    {
+        Json::Value resp;
+
+        // 1. 获取HTTP请求中的Cookie字段
+        std::string cookie_str = conn->get_request_header("Cookie");
+        if (cookie_str.empty())
+        {
+            resp["optype"] = "hall_ready";
+            resp["result"] = false;
+            resp["reason"] = "没有Cookie信息";
+            websocket_resp(conn, resp);
+            return session_ptr();
+        }
+
+        // 从Cookie中获取session id
+        std::string session_id_str;
+        bool ret = get_cookie_value(cookie_str, "SSID", session_id_str);
+        if (ret == false)
+        {
+            resp["optype"] = "hall_ready";
+            resp["result"] = false;
+            resp["reason"] = "Cookie中没有session";
+            websocket_resp(conn, resp);
+            return session_ptr();
+        }
+
+        // 2. 根据session id在session管理中获取对应的session
+        session_ptr psession = _session_manager.get_session_by_session_id(std::stoul(session_id_str));
+        if (psession.get() == nullptr)
+        {
+            resp["optype"] = "hall_ready";
+            resp["result"] = false;
+            resp["reason"] = "session已过期";
+            websocket_resp(conn, resp);
+            return session_ptr();
+        }
+
+        return psession;
+    }
+
+    // 游戏大厅长连接建立成功的处理函数
+    void wsopen_game_hall(websocketsvr_t::connection_ptr conn)
+    {
+        Json::Value resp;
+
+        // 1. 登录验证（判断当前用户是否登录成功）
+        session_ptr psession = get_session_by_cookie(conn);
+        if (psession.get() == nullptr) return;
+
+        // 2. 判断当前用户是否重复登录
+        if (_user_online.is_in_game_hall(psession->get_user_id()) || _user_online.is_in_game_room(psession->get_user_id()))
+        {
+            resp["optype"] = "hall_ready";
+            resp["result"] = false;
+            resp["reason"] = "用户已登录";
+            return websocket_resp(conn, resp);
+        }
+
+        // 3. 将当前用户和对应的连接加入到游戏大厅
+        _user_online.enter_game_hall(psession->get_user_id(), conn);
+
+        // 4. 给用户响应游戏大厅建立成功
+        resp["optype"] = "hall_ready";
+        resp["result"] = true;
+        resp["uid"] = (Json::UInt64)psession->get_user_id();
+        websocket_resp(conn, resp);
+
+        // 5. 将session的生命周期设置为永久
+        _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_PERMANENT);
     }
 
 private:
