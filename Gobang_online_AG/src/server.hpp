@@ -76,7 +76,7 @@ private:
         }
         else if (uri == "/room") // 游戏房间长连接断开
         {
-
+            wscloes_game_room(conn);
         }
     }
 
@@ -454,9 +454,7 @@ private:
     // 游戏大厅长连接断开的处理函数
     void wscloes_game_hall(websocketsvr_t::connection_ptr conn)
     {
-        Json::Value resp;
-
-        // 1. 登录验证（判断当前用户是否登录成功）
+        // 1. 获取用户的session
         session_ptr psession = get_session_by_cookie(conn);
         if (psession.get() == nullptr) return;
 
@@ -467,12 +465,29 @@ private:
         _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_TEMOPRARY);
     }
 
+    // 游戏房间长连接断开的处理函数
+    void wscloes_game_room(websocketsvr_t::connection_ptr conn)
+    {
+        // 1. 获取用户的session
+        session_ptr psession = get_session_by_cookie(conn);
+        if (psession.get() == nullptr) return;
+
+        // 2. 将玩家从在线用户管理中的游戏房间中的玩家中移除
+        _user_online.exit_game_room(psession->get_user_id());
+
+        // 3. 将玩家从游戏房间中移除(房间中所有玩家都退出了就会销毁房间)
+        _room_manager.remove_player_in_room(psession->get_user_id());
+
+        // 4. 将session的生命周期设置为定时的，超时自动销毁
+        _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_TEMOPRARY);
+    }
+
     // 游戏大厅请求处理函数（游戏匹配请求/停止匹配请求）
     void wsmsg_game_hall(websocketsvr_t::connection_ptr conn, websocketsvr_t::message_ptr msg)
     {
         Json::Value resp;
 
-        // 1. 登录验证（判断当前用户是否登录成功）
+        // 1. 获取用户的session
         session_ptr psession = get_session_by_cookie(conn);
         if (psession.get() == nullptr) return;
 
