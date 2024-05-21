@@ -54,7 +54,7 @@ public:
     {
         std::unique_lock<std::mutex> lock(_mtx);
         
-        if (empty() == true)
+        if (_list.empty() == true)
         {
             return false;
         }
