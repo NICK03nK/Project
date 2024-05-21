@@ -80,7 +80,21 @@ private:
         }
     }
 
-    void wsmsg_callback(websocketpp::connection_hdl hdl, websocketsvr_t::message_ptr msg){}
+    // WebSocket长连接通信处理
+    void wsmsg_callback(websocketpp::connection_hdl hdl, websocketsvr_t::message_ptr msg)
+    {
+        websocketsvr_t::connection_ptr conn = _wssvr.get_con_from_hdl(hdl);
+        websocketpp::http::parser::request req = conn->get_request();
+        std::string uri = req.get_uri();
+        if (uri == "/hall") // 游戏大厅请求
+        {
+            wsmsg_game_hall(conn, msg); // 游戏大厅请求处理函数
+        }
+        else if (uri == "/room") // 游戏房间请求
+        {
+
+        }
+    }
 
     void http_callback(websocketpp::connection_hdl hdl)
     {
@@ -407,6 +421,51 @@ private:
 
         // 3. 将session的生命周期设为定时的，超时自动删除
         _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_TEMOPRARY);
+    }
+
+    // 游戏大厅请求处理函数（游戏匹配请求/停止匹配请求）
+    void wsmsg_game_hall(websocketsvr_t::connection_ptr conn, websocketsvr_t::message_ptr msg)
+    {
+        Json::Value resp;
+
+        // 1. 登录验证（判断当前用户是否登录成功）
+        session_ptr psession = get_session_by_cookie(conn);
+        if (psession.get() == nullptr) return;
+
+        // 2. 获取WebSocket请求信息
+        std::string req_str = msg->get_payload();
+        Json::Value req;
+        bool ret = json_util::unserialize(req_str, req);
+        if (ret == false)
+        {
+            resp["result"] = false;
+            resp["reason"] = "解析请求失败";
+            return websocket_resp(conn, resp);
+        }
+
+        // 3. 对于请求分别进行处理
+        if (!req["optype"].isNull() && req["optype"].asString() == "match_start")
+        {
+            // 开始游戏匹配：通过匹配模块，将玩家添加到匹配队列中
+            _match_manager.add(psession->get_user_id());
+            resp["optype"] = "match_start";
+            resp["result"] = true;
+            return websocket_resp(conn, resp);
+        }
+        else if (!req["optype"].isNull() && req["optype"].asString() == "match_stop")
+        {
+            // 停止游戏匹配：通过匹配模块，将玩家从匹配队列中移除
+            _match_manager.del(psession->get_user_id());
+            resp["optype"] = "match_stop";
+            resp["result"] = true;
+            return websocket_resp(conn, resp);
+        }
+
+        resp["optype"] = "unknown";
+        resp["result"] = false;
+        resp["reason"] = "未知请求类型";
+
+        return websocket_resp(conn, resp);
     }
 
 private:
