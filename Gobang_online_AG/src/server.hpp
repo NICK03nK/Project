@@ -60,7 +60,7 @@ private:
         }
         else if (uri == "/room") // 建立了游戏房间的长连接
         {
-
+            wsopen_game_room(conn);
         }
     }
 
@@ -404,6 +404,50 @@ private:
         websocket_resp(conn, resp);
 
         // 5. 将session的生命周期设置为永久
+        _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_PERMANENT);
+    }
+
+    // 游戏房间长连接建立成功的处理函数
+    void wsopen_game_room(websocketsvr_t::connection_ptr conn)
+    {
+        Json::Value resp;
+
+        // 1. 登录验证（判断当前用户是否登录成功）
+        session_ptr psession = get_session_by_cookie(conn);
+        if (psession.get() == nullptr) return;
+
+        // 2. 判断当前用户是否重复登录
+        if (_user_online.is_in_game_hall(psession->get_user_id()) || _user_online.is_in_game_room(psession->get_user_id()))
+        {
+            resp["optype"] = "room_ready";
+            resp["result"] = false;
+            resp["reason"] = "用户已登录";
+            return websocket_resp(conn, resp);
+        }
+
+        // 3. 判断当前用户是否已经创建好了房间
+        room_ptr proom = _room_manager.get_room_by_user_id(psession->get_user_id());
+        if (proom.get() == nullptr)
+        {
+            resp["optype"] = "room_ready";
+            resp["result"] = false;
+            resp["reason"] = "通过用户id获取游戏房间失败";
+            return websocket_resp(conn, resp);
+        }
+
+        // 4. 将当前用户添加到在线用户管理的游戏房间中的用户管理中
+        _user_online.enter_game_room(psession->get_user_id(), conn);
+
+        // 5. 给用户响应房间创建完成
+        resp["optype"] = "room_ready";
+        resp["result"] = true;
+        resp["room_id"] = (Json::UInt64)proom->id();
+        resp["uid"] = (Json::UInt64)psession->get_user_id();
+        resp["white_id"] = (Json::UInt64)proom->get_white_player();
+        resp["black_id"] = (Json::UInt64)proom->get_black_player();
+        websocket_resp(conn, resp);
+
+        // 6. 将session的生命周期设置为永久
         _session_manager.set_session_expiration_time(psession->get_session_id(), SESSION_PERMANENT);
     }
 
