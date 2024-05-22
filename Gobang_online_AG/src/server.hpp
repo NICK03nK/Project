@@ -92,7 +92,7 @@ private:
         }
         else if (uri == "/room") // 游戏房间请求
         {
-
+            wsmsg_game_hall(conn, msg); // 游戏房间请求处理函数
         }
     }
 
@@ -525,6 +525,41 @@ private:
         resp["reason"] = "未知请求类型";
 
         return websocket_resp(conn, resp);
+    }
+
+    // 游戏房间请求处理函数（下棋请求/聊天请求）
+    void wsmsg_game_room(websocketsvr_t::connection_ptr conn, websocketsvr_t::message_ptr msg)
+    {
+        Json::Value resp;
+
+        // 1. 获取用户的session
+        session_ptr psession = get_session_by_cookie(conn);
+        if (psession.get() == nullptr) return;
+
+        // 2. 获取用户所在的游戏房间信息
+        room_ptr proom = _room_manager.get_room_by_user_id(psession->get_user_id());
+        if (proom.get() == nullptr)
+        {
+            resp["optype"] = "unknown";
+            resp["result"] = false;
+            resp["reason"] = "通过用户id获取游戏房间失败";
+            return websocket_resp(conn, resp);
+        }
+
+        // 3. 对请求进行反序列化
+        std::string req_str = msg->get_payload();
+        Json::Value req;
+        bool ret = json_util::unserialize(req_str, req);
+        if (ret == false)
+        {
+            resp["optype"] = "unknown";
+            resp["result"] = false;
+            resp["reason"] = "解析请求失败";
+            return websocket_resp(conn, resp);
+        }
+
+        // 4. 通过游戏房间进行游戏房间请求的处理
+        return proom->handle_request(req);
     }
 
 private:
