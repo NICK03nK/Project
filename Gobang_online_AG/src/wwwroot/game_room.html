@@ -164,7 +164,6 @@
             // 1.收到room_ready后进行房间的初始化
             // 1.1.将房间信息保存起来
             info = JSON.parse(event.data);
-            console.log(JSON.stringify(info));
 
             // 1.2.初始化显示信息
             if (info.optype == "room_ready")
@@ -174,7 +173,6 @@
                 set_screen(is_me);
                 initGame();
             }
-
             // 2.走棋操作
             else if (info.optype == "put_chess")
             {
@@ -211,12 +209,20 @@
                 }
                 else
                 {
-                    screen_div.innerHTML = "you lose, game over";
+                    screen_div.innerHTML = info.reason;
                 }
 
                 var chess_area_div = document.getElementById("chess_area");
                 var button_div = document.createElement("div");
-                button_div.innerHTML = "返回大厅"
+                button_div.innerHTML = "返回游戏大厅";
+                button_div.style.backgroundColor = "#007BFF"; // 设置背景颜色为蓝色
+                button_div.style.color = "#FFFFFF"; // 设置文字颜色为白色，确保可读性
+                button_div.style.padding = "10px"; // 添加一些内边距，让按钮看起来更好
+                button_div.style.cursor = "pointer"; // 鼠标悬停时显示为指针
+                button_div.style.textAlign = "center"; // 将文本居中
+                button_div.style.display = "flex"; // 使用 flex 布局
+                button_div.style.alignItems = "center"; // 垂直居中
+                button_div.style.justifyContent = "center"; // 水平居中
                 button_div.onclick = function() {
                     websocket_hdl.close();
                     location.replace("/game_hall.html");
