@@ -92,7 +92,7 @@ private:
         }
         else if (uri == "/room") // 游戏房间请求
         {
-            wsmsg_game_hall(conn, msg); // 游戏房间请求处理函数
+            wsmsg_game_room(conn, msg); // 游戏房间请求处理函数
         }
     }
 
