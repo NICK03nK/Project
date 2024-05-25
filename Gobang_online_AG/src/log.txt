@@ -7,3 +7,17 @@
 [09:06:40 session.hpp:24] session：0x1280220 已创建
 [09:06:54 room.hpp:39] 1 房间创建成功
 [09:07:58 room.hpp:42] 1 房间销毁成功
+[10:20:47 room.hpp:349] 房间管理类初始化完毕
+[10:20:47 matcher.hpp:93] 游戏匹配管理类初始化完毕
+[10:20:47 session.hpp:61] session管理类初始化完毕
+[10:21:06 util.hpp:148] open ./wwwroot//favicon.ico failed!
+[10:21:11 session.hpp:24] session：0xbf94b0 已创建
+[10:21:27 util.hpp:148] open ./wwwroot//favicon.ico failed!
+[10:21:30 session.hpp:24] session：0xbf8780 已创建
+[10:21:47 room.hpp:39] 1 房间创建成功
+[10:22:29 room.hpp:42] 1 房间销毁成功
+[10:22:42 util.hpp:148] open ./wwwroot//favicon.ico failed!
+[10:22:45 session.hpp:24] session：0xd1b5c0 已创建
+[10:22:58 session.hpp:27] session：0xbf8780 已销毁
+[10:23:02 session.hpp:27] session：0xbf94b0 已销毁
+[10:23:19 session.hpp:27] session：0xd1b5c0 已销毁
