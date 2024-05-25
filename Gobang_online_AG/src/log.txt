@@ -1,0 +1,9 @@
+[09:05:41 room.hpp:349] 房间管理类初始化完毕
+[09:05:41 matcher.hpp:93] 游戏匹配管理类初始化完毕
+[09:05:41 session.hpp:61] session管理类初始化完毕
+[09:06:08 util.hpp:148] open ./wwwroot//favicon.ico failed!
+[09:06:10 session.hpp:24] session：0x13a1980 已创建
+[09:06:38 util.hpp:148] open ./wwwroot//favicon.ico failed!
+[09:06:40 session.hpp:24] session：0x1280220 已创建
+[09:06:54 room.hpp:39] 1 房间创建成功
+[09:07:58 room.hpp:42] 1 房间销毁成功
