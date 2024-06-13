@@ -1,6 +1,8 @@
 #include <vector>
+#include <thread>
 
 #include "ObjectPool.hpp"
+#include "ConcurrentAlloc.hpp"
 
 struct TreeNode
 {
@@ -51,9 +53,36 @@ void TestObjectPool()
     std::cout << "object pool cost time:" << end2 - begin2 << std::endl;
 }
 
+void Alloc1()
+{
+    for (int i = 0; i < 5; ++i)
+    {
+        void* ptr = ConcurrentAlloc(5);
+    }
+}
+
+void Alloc2()
+{
+    for (int i = 0; i < 5; ++i)
+    {
+        void* ptr = ConcurrentAlloc(7);
+    }
+}
+
+void TLSTest()
+{
+    std::thread t1(Alloc1);
+    std::thread t2(Alloc2);
+
+    t1.join();
+    t2.join();
+}
+
 int main()
 {
-    TestObjectPool();
+    //TestObjectPool();
+
+    TLSTest();
 
     return 0;
 }
