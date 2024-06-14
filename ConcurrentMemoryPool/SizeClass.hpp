@@ -76,6 +76,21 @@ public:
         return -1;
     }
 
+    // thread cache一次从central cache中获取多少个内存对象
+    static inline size_t NumMoveSize(size_t size)
+    {
+        assert(size > 0);
+
+        // 一次性批量移动内存对象的取值为：[2, 512]
+        // 小内存对象一次性移动的数量上限高
+        // 大内存对象一次性移动的数量上限低
+        int num = MAX_BYTES / size;
+        if (num < 2) num = 2;
+        if (num > 512) num = 512;
+
+        return num;
+    }
+
 private:
     // RoundUp()的辅助函数
     static inline size_t _RoundUp(size_t bytes, size_t align)

@@ -2,9 +2,11 @@
 
 #include <iostream>
 #include <cassert>
+#include <algorithm>
 
 #include "FreeList.hpp"
 #include "SizeClass.hpp"
+#include "CentralCache.hpp"
 
 class ThreadCache
 {
@@ -28,6 +30,7 @@ public:
         }
     }
 
+    // 将内存块归还给thread cache
     void Deallocate(void* ptr, size_t size)
     {
         assert(ptr);
@@ -41,7 +44,30 @@ public:
     // 从central cache中申请内存（获取thread cache对象）
     void* FetchFromCentralCache(size_t index, size_t size)
     {
-        return nullptr;
+        // 慢开始反馈调节算法，批量获取内存块
+        size_t batchNum = std::min(_freeListBucket[index].MaxSize(), SizeClass::NumMoveSize(size));
+        if (_freeListBucket[index].MaxSize() == batchNum)
+        {
+            _freeListBucket[index].MaxSize() += 1; // 慢增长
+        }
+
+        void* start = nullptr;
+        void* end = nullptr;
+        size_t actualNum = CentralCache::GetInstance()->FetchRangeObj(start, end, batchNum, size);
+        assert(actualNum >= 1);
+        
+        if (actualNum == 1)
+        {
+            // 实际申请到的内存块数量只有1个，则start和end相等
+            assert(start == end);
+        }
+        else
+        {
+            // 将申请到的多个内存块插入自由链表桶下挂的自由链表中
+            _freeListBucket[index].PushRange(NextObj(start), end);
+        }
+
+        return start;
     }
 
 private:
