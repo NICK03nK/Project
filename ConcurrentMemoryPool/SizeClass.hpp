@@ -5,6 +5,8 @@
 
 static const size_t MAX_BYTES = 256 * 1024; // thread cache中最大可申请的内存为256KB
 static const size_t N_FREELISTS = 208;      // 哈希桶的自由链表个数
+static const size_t N_PAGES = 128;          // page cache中页数的上限
+static const size_t PAGE_SHIFT = 13;        // 一个页的大小为2^13byte，即8KB
 
 class SizeClass
 {
@@ -89,6 +91,19 @@ public:
         if (num > 512) num = 512;
 
         return num;
+    }
+
+    // 计算一次向操作系统获取几个页
+    static inline size_t NumMovePage(size_t size)
+    {
+        size_t batchNum = NumMoveSize(size);
+        size_t bytes = batchNum * size; // 要申请的内存空间的总字节数
+
+        // 计算向操作系统申请的页数
+        size_t nPages = bytes >> N_PAGES;
+        if (nPages == 0) nPages = 1; // 要申请的内存空间不足一个页的大小（不足8KB），则按一个页申请
+
+        return nPages;
     }
 
 private:
