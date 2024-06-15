@@ -13,7 +13,7 @@ typedef size_t PAGE_ID;
 struct Span
 {
 	PAGE_ID _pageId = 0;       // 页号
-	size_t _n = 0;			   // 页的数量
+	size_t _nPages = 0;		   // 页的数量
 	Span* _prev = nullptr;     // 指向前一个Span对象
 	Span* _next = nullptr;     // 指向后一个Span
 	size_t _useCount = 0;	   // 切割的小块内存，分配给thread cache的计数
@@ -29,6 +29,15 @@ public:
 		_head = new Span();
 		_head->_prev = _head;
 		_head->_next = _head;
+	}
+
+	Span* Begin() { return _head->_next; }
+
+	Span* End() { return _head; }
+
+	void PushFront(Span* newSpan)
+	{
+		Insert(Begin(), newSpan);
 	}
 
 	void Insert(Span* pos, Span* newSpan)
