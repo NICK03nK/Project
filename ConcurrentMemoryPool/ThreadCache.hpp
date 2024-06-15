@@ -51,6 +51,7 @@ public:
             _freeListBucket[index].MaxSize() += 1; // 慢增长
         }
 
+        // 向central cache申请batchNum个内存块
         void* start = nullptr;
         void* end = nullptr;
         size_t actualNum = CentralCache::GetInstance()->FetchRangeObj(start, end, batchNum, size);
