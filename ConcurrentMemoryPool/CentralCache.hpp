@@ -4,6 +4,7 @@
 
 #include "SpanList.hpp"
 #include "SizeClass.hpp"
+#include "PageCache.hpp"
 
 // 单例模式--饿汉模式
 class CentralCache
@@ -15,7 +16,47 @@ public:
 	// 获取一个非空的span
 	Span* GetOneSpan(SpanList& spanList, size_t size)
 	{
-		return nullptr; // TODO
+		// 查看当前spanlist中是否存在_freeList不为空的span对象
+		Span* it = spanList.Begin();
+		while (it != spanList.End())
+		{
+			if (it->_freeList != nullptr)
+			{
+				return it;
+			}
+			else
+			{
+				it = it->_next;
+			}
+		}
+
+		// 代码执行到这里说明，当前spanlist中没有空闲的span了，需要向page cache申请span对象
+		Span* span = PageCache::GetInstance()->GetSpan(SizeClass::NumMovePage(size));
+
+		// 计算span的大块内存的起始地址和大块内存的的字节数
+		char* start = (char*)(span->_pageId << PAGE_SHIFT);
+		size_t bytes = span->_nPages << PAGE_SHIFT;
+		char* end = start + bytes;
+
+		// 把大块内存切割成小块放入到span中的_freeList中管理起来
+		// 1. 先切下一小块内存放入_freeList中，方便尾插
+		span->_freeList = start;
+		start += size;
+		void* tail = span->_freeList;
+
+		// 2. 将后面的内存切成小块尾插到_freeList中
+		while (start < end)
+		{
+			NextObj(tail) = start;
+			tail = NextObj(tail);
+
+			start += size;
+		}
+
+		// 从page cache申请到的span要头插到当前的spanlist中
+		spanList.PushFront(span);
+
+		return span;
 	}
 
 	// 从central cache获取一定数量的内存对象给thread cache
@@ -26,10 +67,10 @@ public:
 
 		size_t actualNum = 1; // 实际从central cache中申请到内存块的数量
 		{
-			std::lock_guard<std::mutex> lock(_spanList[index].GetMutex()); // 桶锁，作用域内为加锁区域
+			std::lock_guard<std::mutex> lock(_spanListBucket[index].GetMutex()); // 桶锁，作用域内为加锁区域
 
 			// 获取一个span
-			Span* span = GetOneSpan(_spanList[index], size);
+			Span* span = GetOneSpan(_spanListBucket[index], size);
 			assert(span);
 			assert(span->_freeList);
 
@@ -52,7 +93,7 @@ public:
 	}
 
 private:
-	SpanList _spanList[N_FREELISTS]; // 自由链表桶
+	SpanList _spanListBucket[N_FREELISTS]; // 自由链表桶
 
 private:
 	CentralCache() {}
