@@ -45,7 +45,7 @@ public:
     void* FetchFromCentralCache(size_t index, size_t size)
     {
         // 慢开始反馈调节算法，批量获取内存块
-        size_t batchNum = std::min(_freeListBucket[index].MaxSize(), SizeClass::NumMoveSize(size));
+        size_t batchNum = min(_freeListBucket[index].MaxSize(), SizeClass::NumMoveSize(size));
         if (_freeListBucket[index].MaxSize() == batchNum)
         {
             _freeListBucket[index].MaxSize() += 1; // 慢增长

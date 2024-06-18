@@ -35,9 +35,18 @@ public:
 
 	Span* End() { return _head; }
 
+	bool Empty() { return _head->_next == _head; }
+
 	void PushFront(Span* newSpan)
 	{
 		Insert(Begin(), newSpan);
+	}
+
+	Span* PopFront()
+	{
+		Span* front = _head->_next;
+		Erase(front);
+		return front;
 	}
 
 	void Insert(Span* pos, Span* newSpan)
