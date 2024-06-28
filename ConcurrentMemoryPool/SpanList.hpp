@@ -18,6 +18,7 @@ struct Span
 	Span* _next = nullptr;     // 指向后一个Span
 	size_t _useCount = 0;	   // 切割的小块内存，分配给thread cache的计数
 	void* _freeList = nullptr; // 管理切割的小块内存的自由链表
+	bool _isUse = false;       // 标记该span是否被使用
 };
 
 // 带头双向循环链表

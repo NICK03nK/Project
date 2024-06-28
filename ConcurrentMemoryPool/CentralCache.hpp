@@ -36,6 +36,7 @@ public:
 		// 代码执行到这里说明，当前spanlist中没有空闲的span了，需要向page cache申请span对象
 		PageCache::GetInstance()->GetMutex().lock(); // page cache整体锁加锁
 		Span* span = PageCache::GetInstance()->GetSpan(SizeClass::NumMovePage(size));
+		span->_isUse = true; // 从page cache中申请到的span置为使用状态
 		PageCache::GetInstance()->GetMutex().unlock(); // page cache整体锁解锁
 
 		// 计算span的大块内存的起始地址和大块内存的的字节数
@@ -97,6 +98,48 @@ public:
 		_spanListBucket[index].GetMutex().unlock(); // 桶锁解锁
 
 		return actualNum;
+	}
+
+	// 将批量的小内存块归还给central cache中对应的spanList的span
+	// （这里函数名以Spans命名，因为归还回来的小内存块可能会过多，要归还到多个span中）
+	void ReleaseListToSpans(void* start, size_t size)
+	{
+		size_t index = SizeClass::Index(size);
+
+		_spanListBucket[index].GetMutex().lock(); // 桶锁加锁
+
+		while (start)
+		{
+			void* next = NextObj(start);
+
+			// 找到start对应的span，将start指向的小内存块头插到span中freeList管理的自由链表中
+			Span* span = PageCache::GetInstance()->MapObjToSpan(start);
+			NextObj(start) = span->_freeList;
+			span->_freeList = start;
+			--span->_useCount; // 每归还一个小内存块就要对span的_useCount减减
+
+			// 当span的_useCount等于0，说明该span切割的小内存已经全部归还回来了
+			// 可以将该span归还给page cache，page cache可以尝试去做前后页合并
+			if (span->_useCount == 0)
+			{
+				_spanListBucket[index].Erase(span);
+				span->_freeList = nullptr;
+				span->_prev = nullptr;
+				span->_next = nullptr;
+
+				_spanListBucket[index].GetMutex().unlock();
+
+				PageCache::GetInstance()->GetMutex().lock();
+				PageCache::GetInstance()->ReleaseSpanToPageCache(span); // 将span归还给page cache
+				PageCache::GetInstance()->GetMutex().unlock();
+
+				_spanListBucket[index].GetMutex().lock();
+			}
+
+			start = next;
+		}
+
+		_spanListBucket[index].GetMutex().unlock(); // 桶锁解锁
 	}
 
 private:

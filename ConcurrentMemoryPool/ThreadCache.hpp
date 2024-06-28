@@ -39,6 +39,12 @@ public:
         // 计算对应的自由链表桶的下标，将归还的内存块头插到该下标的自由链表中
         size_t index = SizeClass::Index(size);
         _freeListBucket[index].Push(ptr);
+
+        // 当链表长度大于一次批量申请的内存时就将freeList中的一段小内存块归还给central cache
+        if (_freeListBucket[index].Size() >= _freeListBucket[index].MaxSize())
+        {
+            ListTooLong(_freeListBucket[index], size);
+        }
     }
 
     // 从central cache中申请内存（获取thread cache对象）
@@ -65,10 +71,20 @@ public:
         else
         {
             // 将申请到的多个内存块插入自由链表桶下挂的自由链表中
-            _freeListBucket[index].PushRange(NextObj(start), end);
+            _freeListBucket[index].PushRange(NextObj(start), end, actualNum - 1);
         }
 
         return start;
+    }
+
+    // 处理thread cache中过长的freeList
+    void ListTooLong(FreeList& freeList, size_t size)
+    {
+        void* start = nullptr;
+        void* end = nullptr;
+        freeList.PopRange(start, end, freeList.MaxSize()); // 从freeList中取出批量个小内存块
+
+        CentralCache::GetInstance()->ReleaseListToSpans(start, size); // 将批量的小内存块归还给central cache
     }
 
 private:
