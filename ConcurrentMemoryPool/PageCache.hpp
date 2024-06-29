@@ -127,7 +127,7 @@ public:
 			delete prevSpan;
 		}
 
-		// 对span前的页尝试进行合并
+		// 对span后的页尝试进行合并
 		while (true)
 		{
 			PAGE_ID nextId = span->_pageId + span->_nPages;

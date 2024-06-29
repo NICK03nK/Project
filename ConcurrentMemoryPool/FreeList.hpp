@@ -65,5 +65,5 @@ public:
 private:
 	void* _freeList = nullptr; // 自由链表的头指针
 	size_t _maxSize = 1;       // 结合慢增长来使用
-    size_t _size;              // 记录自由链表中小内存块的个数
+    size_t _size = 0;          // 记录自由链表中小内存块的个数
 };
