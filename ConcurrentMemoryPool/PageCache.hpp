@@ -17,6 +17,12 @@ inline static void* SystemAlloc(size_t nPages)
 	return ptr;
 }
 
+// 释放在堆上申请的空间
+inline static void SystemFree(void* ptr)
+{
+	VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
 class PageCache
 {
 public:
@@ -43,7 +49,21 @@ public:
 	// 获取一个nPages页的Span对象
 	Span* GetSpan(size_t nPages)
 	{
-		assert(nPages > 0 && nPages < N_PAGES);
+		assert(nPages > 0);
+
+		// 申请的页数大于128页
+		if (nPages > N_PAGES - 1)
+		{
+			// 直接向系统申请内存空间
+			void* ptr = SystemAlloc(nPages);
+			Span* span = new Span();
+			span->_pageId = (PAGE_ID)ptr >> PAGE_SHIFT;
+			span->_nPages = nPages;
+
+			_idSpanMap[span->_pageId] = span;
+
+			return span;
+		}
 
 		// 先检查第nPages个SpanList中有没有span
 		if (!_spanListBucket[nPages].Empty())
@@ -103,6 +123,16 @@ public:
 	// 归还空闲的span到page cache，并合并相邻的span
 	void ReleaseSpanToPageCache(Span* span)
 	{
+		// 大于128页的span直接还给堆
+		if (span->_nPages > N_PAGES - 1)
+		{
+			void* ptr = (void*)(span->_pageId << PAGE_SHIFT);
+			SystemFree(ptr);
+			delete span;
+
+			return;
+		}
+
 		// 对span前的页尝试进行合并
 		while (true)
 		{

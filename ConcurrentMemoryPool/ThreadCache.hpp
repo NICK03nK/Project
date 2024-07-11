@@ -40,7 +40,7 @@ public:
         size_t index = SizeClass::Index(size);
         _freeListBucket[index].Push(ptr);
 
-        // 当链表长度大于一次批量申请的内存时就将freeList中的一段小内存块归还给central cache
+        // 当链表长度大于等于一次批量申请的内存时就将freeList中的一段小内存块归还给central cache
         if (_freeListBucket[index].Size() >= _freeListBucket[index].MaxSize())
         {
             ListTooLong(_freeListBucket[index], size);

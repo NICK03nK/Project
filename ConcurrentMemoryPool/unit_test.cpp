@@ -1,3 +1,4 @@
+#include <iostream>
 #include <vector>
 #include <thread>
 
@@ -108,13 +109,92 @@ void TestConcurrentAlloc2()
     std::cout << p2 << std::endl;
 }
 
+void TestConcurrentFree()
+{
+    void* p1 = ConcurrentAlloc(6);
+    void* p2 = ConcurrentAlloc(8);
+    void* p3 = ConcurrentAlloc(1);
+    void* p4 = ConcurrentAlloc(7);
+    void* p5 = ConcurrentAlloc(8);
+    void* p6 = ConcurrentAlloc(2);
+    void* p7 = ConcurrentAlloc(1);
+
+    std::cout << p1 << std::endl;
+    std::cout << p2 << std::endl;
+    std::cout << p3 << std::endl;
+    std::cout << p4 << std::endl;
+    std::cout << p5 << std::endl;
+
+    ConcurrentFree(p1, 6);
+    ConcurrentFree(p2, 8);
+    ConcurrentFree(p3, 1);
+    ConcurrentFree(p4, 7);
+    ConcurrentFree(p5, 8);
+    ConcurrentFree(p6, 2);
+    ConcurrentFree(p7, 1);
+}
+
+void MultiThreadAlloc1()
+{
+    std::vector<void*> vt;
+    for (int i = 0; i < 7; ++i)
+    {
+        void* ptr = ConcurrentAlloc(6);
+        vt.push_back(ptr);
+    }
+
+    for (auto e : vt)
+    {
+        ConcurrentFree(e, 6);
+    }
+}
+
+void MultiThreadAlloc2()
+{
+    std::vector<void*> vt;
+    for (int i = 0; i < 7; ++i)
+    {
+        void* ptr = ConcurrentAlloc(7);
+        vt.push_back(ptr);
+    }
+
+    for (auto e : vt)
+    {
+        ConcurrentFree(e, 7);
+    }
+}
+
+void TestMultiThread()
+{
+    std::thread t1(MultiThreadAlloc1);
+    std::thread t2(MultiThreadAlloc2);
+
+    t1.join();
+    t2.join();
+}
+
+void BigAlloc()
+{
+    void* p1 = ConcurrentAlloc(257 * 1024);
+    ConcurrentFree(p1, 257 * 1024);
+
+    void* p2 = ConcurrentAlloc(129 * 8 * 1024);
+    ConcurrentFree(p2, 129 * 8 * 1024);
+}
+
 int main()
 {
     //TestObjectPool();
     //TLSTest();
 
     //TestConcurrentAlloc1();
-    TestConcurrentAlloc2();
+    //TestConcurrentAlloc2();
+
+    //TestConcurrentFree();
+
+    //TestMultiThread();
+
+    BigAlloc();
 
     return 0;
 }

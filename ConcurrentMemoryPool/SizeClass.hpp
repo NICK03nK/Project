@@ -41,7 +41,10 @@ public:
         {
             return _RoundUp(bytes, 8 * 1024);
         }
-        else assert(false);
+        else
+        {
+            return _RoundUp(bytes, 1 << PAGE_SHIFT);
+        }
 
         return -1;
     }
