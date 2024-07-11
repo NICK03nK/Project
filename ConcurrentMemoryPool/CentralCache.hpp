@@ -1,9 +1,6 @@
 #pragma once
 
-#include <cassert>
-
-#include "SpanList.hpp"
-#include "SizeClass.hpp"
+#include "Common.hpp"
 #include "PageCache.hpp"
 
 // 单例模式--饿汉模式

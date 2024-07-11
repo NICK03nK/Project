@@ -1,11 +1,9 @@
 #pragma once
 
-#include <iostream>
-#include <cassert>
-
+#include "Common.hpp"
 #include "ThreadCache.hpp"
 #include "PageCache.hpp"
-#include "SizeClass.hpp"
+#include "ObjectPool.hpp"
 
 static void* ConcurrentAlloc(size_t size)
 {
@@ -27,8 +25,9 @@ static void* ConcurrentAlloc(size_t size)
 		// 通过TLS，每个线程可以无锁的获取属于自己的专属的ThreadCache对象
 		if (pTLSThreadCache == nullptr)
 		{
-			// 线程局部存储为空，则new一个ThreadCache对象
-			pTLSThreadCache = new ThreadCache();
+			// 线程局部存储为空，则创建一个ThreadCache对象的定长内存池
+			static ObjectPool<ThreadCache> threadCachePool;
+			pTLSThreadCache = threadCachePool.New();
 		}
 
 		std::cout << std::this_thread::get_id() << ":" << pTLSThreadCache << std::endl;

@@ -1,8 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <cstdlib>
-#include <new>
+#include "Common.hpp"
 
 template<class T>
 class ObjectPool
@@ -22,9 +20,9 @@ public:
         {
             if (_remainingBytes < sizeof(T)) // 内存块剩余的字节小于T的大小
             {
-                // 调用malloc申请大块内存
+                // 调用SystemAlloc申请大块内存
                 _remainingBytes = 128 * 1024;
-                _memory = (char*)malloc(_remainingBytes);
+                _memory = (char*)SystemAlloc(_remainingBytes >> 13);
                 if (_memory == nullptr) throw std::bad_alloc();
             }
 

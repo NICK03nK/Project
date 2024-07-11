@@ -187,14 +187,14 @@ int main()
     //TestObjectPool();
     //TLSTest();
 
-    //TestConcurrentAlloc1();
+    TestConcurrentAlloc1();
     //TestConcurrentAlloc2();
 
     //TestConcurrentFree();
 
     //TestMultiThread();
 
-    BigAlloc();
+    //BigAlloc();
 
     return 0;
 }

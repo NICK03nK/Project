@@ -1,11 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <cassert>
-#include <algorithm>
-
-#include "FreeList.hpp"
-#include "SizeClass.hpp"
+#include "Common.hpp"
 #include "CentralCache.hpp"
 
 class ThreadCache
