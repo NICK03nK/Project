@@ -13,6 +13,8 @@ public:
 	// 通过小内存块得到映射的span对象
 	Span* MapObjToSpan(void* obj)
 	{
+		std::unique_lock<std::mutex> lock(_pageMtx);
+
 		PAGE_ID id = ((PAGE_ID)obj >> PAGE_SHIFT);
 		auto ret = _idSpanMap.find(id);
 		if (ret != _idSpanMap.end())

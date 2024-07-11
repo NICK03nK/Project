@@ -125,13 +125,13 @@ void TestConcurrentFree()
     std::cout << p4 << std::endl;
     std::cout << p5 << std::endl;
 
-    ConcurrentFree(p1, 6);
-    ConcurrentFree(p2, 8);
-    ConcurrentFree(p3, 1);
-    ConcurrentFree(p4, 7);
-    ConcurrentFree(p5, 8);
-    ConcurrentFree(p6, 2);
-    ConcurrentFree(p7, 1);
+    ConcurrentFree(p1);
+    ConcurrentFree(p2);
+    ConcurrentFree(p3);
+    ConcurrentFree(p4);
+    ConcurrentFree(p5);
+    ConcurrentFree(p6);
+    ConcurrentFree(p7);
 }
 
 void MultiThreadAlloc1()
@@ -145,7 +145,7 @@ void MultiThreadAlloc1()
 
     for (auto e : vt)
     {
-        ConcurrentFree(e, 6);
+        ConcurrentFree(e);
     }
 }
 
@@ -160,7 +160,7 @@ void MultiThreadAlloc2()
 
     for (auto e : vt)
     {
-        ConcurrentFree(e, 7);
+        ConcurrentFree(e);
     }
 }
 
@@ -176,10 +176,10 @@ void TestMultiThread()
 void BigAlloc()
 {
     void* p1 = ConcurrentAlloc(257 * 1024);
-    ConcurrentFree(p1, 257 * 1024);
+    ConcurrentFree(p1);
 
     void* p2 = ConcurrentAlloc(129 * 8 * 1024);
-    ConcurrentFree(p2, 129 * 8 * 1024);
+    ConcurrentFree(p2);
 }
 
 int main()
@@ -187,14 +187,14 @@ int main()
     //TestObjectPool();
     //TLSTest();
 
-    TestConcurrentAlloc1();
+    //TestConcurrentAlloc1();
     //TestConcurrentAlloc2();
 
-    //TestConcurrentFree();
+    TestConcurrentFree();
 
     //TestMultiThread();
 
-    //BigAlloc();
+    BigAlloc();
 
     return 0;
 }

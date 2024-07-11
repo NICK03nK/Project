@@ -14,6 +14,7 @@ static void* ConcurrentAlloc(size_t size)
 
 		PageCache::GetInstance()->GetMutex().lock();
 		Span* span = PageCache::GetInstance()->GetSpan(nPages);
+		span->_objSize = size; // 设置span下挂的小内存块的大小
 		PageCache::GetInstance()->GetMutex().unlock();
 
 		void* ptr = (void*)(span->_pageId << PAGE_SHIFT);
@@ -36,12 +37,13 @@ static void* ConcurrentAlloc(size_t size)
 	}
 }
 
-static void ConcurrentFree(void* ptr, size_t size)
+static void ConcurrentFree(void* ptr)
 {
+	Span* span = PageCache::GetInstance()->MapObjToSpan(ptr);
+	size_t size = span->_objSize;
+
 	if (size > MAX_BYTES)
 	{
-		Span* span = PageCache::GetInstance()->MapObjToSpan(ptr);
-
 		PageCache::GetInstance()->GetMutex().lock();
 		PageCache::GetInstance()->ReleaseSpanToPageCache(span);
 		PageCache::GetInstance()->GetMutex().unlock();

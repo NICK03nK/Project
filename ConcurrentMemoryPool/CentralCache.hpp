@@ -34,6 +34,7 @@ public:
 		PageCache::GetInstance()->GetMutex().lock(); // page cache整体锁加锁
 		Span* span = PageCache::GetInstance()->GetSpan(SizeClass::NumMovePage(size));
 		span->_isUse = true; // 从page cache中申请到的span置为使用状态
+		span->_objSize = size; // 设置span下挂的小内存块的大小
 		PageCache::GetInstance()->GetMutex().unlock(); // page cache整体锁解锁
 
 		// 计算span的大块内存的起始地址和大块内存的的字节数

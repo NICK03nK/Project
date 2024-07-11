@@ -223,6 +223,7 @@ struct Span
     size_t _nPages = 0;		   // 页的数量
     Span* _prev = nullptr;     // 指向前一个Span对象
     Span* _next = nullptr;     // 指向后一个Span
+    size_t _objSize = 0;       // 切割的小块内存的大小
     size_t _useCount = 0;	   // 切割的小块内存，分配给thread cache的计数
     void* _freeList = nullptr; // 管理切割的小块内存的自由链表
     bool _isUse = false;       // 标记该span是否被使用
