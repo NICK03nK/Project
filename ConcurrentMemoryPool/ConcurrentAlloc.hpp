@@ -31,7 +31,7 @@ static void* ConcurrentAlloc(size_t size)
 			pTLSThreadCache = threadCachePool.New();
 		}
 
-		std::cout << std::this_thread::get_id() << ":" << pTLSThreadCache << std::endl;
+		//std::cout << std::this_thread::get_id() << ":" << pTLSThreadCache << std::endl;
 
 		return pTLSThreadCache->Allocate(size);
 	}

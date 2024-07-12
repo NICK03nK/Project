@@ -50,7 +50,15 @@ public:
 		// 先检查第nPages个SpanList中有没有span
 		if (!_spanListBucket[nPages].Empty())
 		{
-			return _spanListBucket[nPages].PopFront();
+			Span* nPagesSpan = _spanListBucket[nPages].PopFront();
+
+			// 建立页号和span的映射关系，方便central cache回收小块内存时查找对应的span对象
+			for (PAGE_ID i = 0; i < nPagesSpan->_nPages; ++i)
+			{
+				_idSpanMap[nPagesSpan->_pageId + i] = nPagesSpan;
+			}
+
+			return nPagesSpan;
 		}
 
 		// 执行到这说明，_spanListBucket[nPages]中没有span，则检查后面的SpanList中有没有span，如果有则将大的span切割

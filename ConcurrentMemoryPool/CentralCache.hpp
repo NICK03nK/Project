@@ -56,6 +56,7 @@ public:
 
 			start += size;
 		}
+		NextObj(tail) = nullptr;
 
 		// 从page cache申请到的span要头插到当前的spanlist中，此过程对central cache中的spanlist操作，桶锁加锁保护
 		spanList.GetMutex().lock();

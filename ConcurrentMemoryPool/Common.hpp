@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <new>
 #include <algorithm>
+#include <atomic>
+#include <thread>
 
 static const size_t MAX_BYTES = 256 * 1024; // thread cache中最大可申请的内存为256KB
 static const size_t N_FREELISTS = 208;      // 哈希桶的自由链表个数
