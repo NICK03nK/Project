@@ -113,6 +113,12 @@ public:
     // [8*1024+1, 64*1024]      1024byte对齐      freelist[128,184)
     // [64*1024+1, 256*1024]    8*1024byte对齐    freelist[184,208)
 
+    // RoundUp()的辅助函数
+    static inline size_t _RoundUp(size_t bytes, size_t align)
+    {
+        return (((bytes)+align - 1) & ~(align - 1));
+    }
+
     // 计算按bytes大小申请内存实际申请到的内存大小
     static inline size_t RoundUp(size_t bytes)
     {
@@ -142,6 +148,12 @@ public:
         }
 
         return -1;
+    }
+
+    // Index()的辅助函数
+    static inline size_t _Index(size_t bytes, size_t align_shift)
+    {
+        return ((bytes + (1 << align_shift) - 1) >> align_shift) - 1;
     }
 
     // 计算映射到哪个自由链表桶
@@ -202,19 +214,6 @@ public:
         if (nPages == 0) nPages = 1; // 要申请的内存空间不足一个页的大小（不足8KB），则按一个页申请
 
         return nPages;
-    }
-
-private:
-    // RoundUp()的辅助函数
-    static inline size_t _RoundUp(size_t bytes, size_t align)
-    {
-        return (((bytes)+align - 1) & ~(align - 1));
-    }
-
-    // Index()的辅助函数
-    static inline size_t _Index(size_t bytes, size_t align_shift)
-    {
-        return ((bytes + (1 << align_shift) - 1) >> align_shift) - 1;
     }
 };
 

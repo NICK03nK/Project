@@ -2,6 +2,7 @@
 
 #include "Common.hpp"
 #include "ObjectPool.hpp"
+#include "PageMap.hpp"
 
 class PageCache
 {
@@ -13,9 +14,10 @@ public:
 	// 通过小内存块得到映射的span对象
 	Span* MapObjToSpan(void* obj)
 	{
-		std::unique_lock<std::mutex> lock(_pageMtx);
-
 		PAGE_ID id = ((PAGE_ID)obj >> PAGE_SHIFT);
+
+		/*std::unique_lock<std::mutex> lock(_pageMtx);
+
 		auto ret = _idSpanMap.find(id);
 		if (ret != _idSpanMap.end())
 		{
@@ -25,7 +27,10 @@ public:
 		{
 			assert(false);
 			return nullptr;
-		}
+		}*/
+		auto ret = (Span*)_idSpanMap.get(id);
+		assert(ret != nullptr);
+		return ret;
 	}
 
 	// 获取一个nPages页的Span对象
@@ -42,7 +47,8 @@ public:
 			span->_pageId = (PAGE_ID)ptr >> PAGE_SHIFT;
 			span->_nPages = nPages;
 
-			_idSpanMap[span->_pageId] = span;
+			//_idSpanMap[span->_pageId] = span;
+			_idSpanMap.set(span->_pageId, span);
 
 			return span;
 		}
@@ -55,7 +61,8 @@ public:
 			// 建立页号和span的映射关系，方便central cache回收小块内存时查找对应的span对象
 			for (PAGE_ID i = 0; i < nPagesSpan->_nPages; ++i)
 			{
-				_idSpanMap[nPagesSpan->_pageId + i] = nPagesSpan;
+				//_idSpanMap[nPagesSpan->_pageId + i] = nPagesSpan;
+				_idSpanMap.set(nPagesSpan->_pageId + i, nPagesSpan);
 			}
 
 			return nPagesSpan;
@@ -83,13 +90,16 @@ public:
 				_spanListBucket[bigSpan->_nPages].PushFront(bigSpan);
 
 				// 存储bigSpan的首尾页号跟bigSpan的映射，方便page cache回收内存时进行的合并查找
-				_idSpanMap[bigSpan->_pageId] = bigSpan;
-				_idSpanMap[bigSpan->_pageId + bigSpan->_nPages - 1] = bigSpan;
+				/*_idSpanMap[bigSpan->_pageId] = bigSpan;
+				_idSpanMap[bigSpan->_pageId + bigSpan->_nPages - 1] = bigSpan;*/
+				_idSpanMap.set(bigSpan->_pageId, bigSpan);
+				_idSpanMap.set(bigSpan->_pageId + bigSpan->_nPages - 1, bigSpan);
 
 				// 建立页号和span的映射关系，方便central cache回收小块内存时查找对应的span对象
 				for (PAGE_ID i = 0; i < nPagesSpan->_nPages; ++i)
 				{
-					_idSpanMap[nPagesSpan->_pageId + i] = nPagesSpan;
+					//_idSpanMap[nPagesSpan->_pageId + i] = nPagesSpan;
+					_idSpanMap.set(nPagesSpan->_pageId + i, nPagesSpan);
 				}
 
 				return nPagesSpan;
@@ -127,13 +137,16 @@ public:
 		while (true)
 		{
 			PAGE_ID prevId = span->_pageId - 1;
-			auto ret = _idSpanMap.find(prevId); // 查找span前面的页
+			//auto ret = _idSpanMap.find(prevId); // 查找span前面的页
 
-			// 前面的页号没有申请到，无法合并页，break跳出循环
-			if (ret == _idSpanMap.end()) break;
+			//// 前面的页号没有申请到，无法合并页，break跳出循环
+			//if (ret == _idSpanMap.end()) break;
+			auto ret = (Span*)_idSpanMap.get(prevId);
+			if (ret == nullptr) break;
 
 			// 前面页的span正在被使用，无法合并页，break跳出循环
-			Span* prevSpan = ret->second;
+			//Span* prevSpan = ret->second;
+			Span* prevSpan = ret;
 			if (prevSpan->_isUse == true) break;
 
 			// 合并出超过128页的span，没办法管理，无法合并页，break跳出循环
@@ -151,13 +164,16 @@ public:
 		while (true)
 		{
 			PAGE_ID nextId = span->_pageId + span->_nPages;
-			auto ret = _idSpanMap.find(nextId);
-			
-			// 后面的页号没有申请到，无法合并页，break跳出循环
-			if (ret == _idSpanMap.end()) break;
+			//auto ret = _idSpanMap.find(nextId);
+			//
+			//// 后面的页号没有申请到，无法合并页，break跳出循环
+			//if (ret == _idSpanMap.end()) break;
+			auto ret = (Span*)_idSpanMap.get(nextId);
+			if (ret == nullptr) break;
 			
 			// 后面页的span正在被使用，无法合并页，break跳出循环
-			Span* nextSpan = ret->second;
+			//Span* nextSpan = ret->second;
+			Span* nextSpan = ret;
 			if (nextSpan->_isUse == true) break;
 
 			// 合并出超过128页的span，没办法管理，无法合并页，break跳出循环
@@ -175,15 +191,18 @@ public:
 		span->_isUse = false; // 将状态置为未被使用，使得其他的span可以对该span进行合并
 
 		// 将span的首尾页号和span的映射存入_idSpanMap中
-		_idSpanMap[span->_pageId] = span;
-		_idSpanMap[span->_pageId + span->_nPages - 1] = span;
+		/*_idSpanMap[span->_pageId] = span;
+		_idSpanMap[span->_pageId + span->_nPages - 1] = span;*/
+		_idSpanMap.set(span->_pageId, span);
+		_idSpanMap.set(span->_pageId + span->_nPages - 1, span);
 	}
 
 private:
 	SpanList _spanListBucket[N_PAGES];             // 自由链表桶
 	ObjectPool<Span> _spanPool;                    // span对象的定长内存池
 	std::mutex _pageMtx;						   // page cache的整体锁
-	std::unordered_map<PAGE_ID, Span*> _idSpanMap; // 页号和span对象的映射关系
+	//std::unordered_map<PAGE_ID, Span*> _idSpanMap; // 页号和span对象的映射关系
+	TCMalloc_PageMap1<32 - PAGE_SHIFT> _idSpanMap;
 
 private:
 	PageCache() {}
